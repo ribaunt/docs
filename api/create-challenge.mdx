@@ -1,7 +1,7 @@
 ---
 title: "createChallenge"
 sidebarTitle: "createChallenge"
-description: "createChallenge(difficulty, amount, ttlSeconds) creates signed JWT challenge tokens for proof-of-work verification."
+description: "createChallenge(difficulty, amount, ttlSeconds) issues signed JWT challenge tokens for Ribaunt proof-of-work CAPTCHA verification on the server."
 ---
 
 `createChallenge()` is imported from `ribaunt` and called server-side to generate one or more proof-of-work challenge tokens. Each token is a signed JWT that the browser solver decodes and works against.
