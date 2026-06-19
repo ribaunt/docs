@@ -1,0 +1,25 @@
+---
+title: "Express.js"
+sidebarTitle: "Express"
+description: "Richten Sie Endpunkte zur Challenge-Generierung und Lösungsverifizierung in einem Express.js-Server mit Ribaunts createChallenge- und verifySolution-Funktionen ein."
+---
+
+Diese Anleitung führt Sie durch das Hinzufügen von zwei Ribaunt-CAPTCHA-Endpunkten zu einem Express.js-Server: einer, der signierte Proof-of-Work-Challenges an den Client ausgibt, und einer, der die gelösten Antworten verifiziert, bevor Sie der Anfrage vertrauen. Beide Endpunkte sind zustandslos – Ribaunt kodiert den gesamten Challenge-Zustand innerhalb eines signierten JWT, sodass keine Datenbank erforderlich ist.
+
+## Voraussetzungen
+
+- Node.js 18 oder höher
+- `express` und `ribaunt` in Ihrem Projekt installiert
+- Eine Umgebungsvariable `RIBAUNT_SECRET`, gesetzt auf eine starke zufällige Zeichenfolge
+
+## Best Practices
+
+- **Begrenzen Sie die Rate des Challenge-Endpunkts.** Verwenden Sie [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit), um die Anzahl der Challenges zu begrenzen, die eine einzelne IP pro Minute anfordern kann. Ohne diese Maßnahme kann ein Angreifer Tokens für Offline-Brute-Forcing sammeln.
+- **Verknüpfen Sie die Verifizierung mit einer Session.** Geben Sie nach einem erfolgreichen `verifySolution`-Aufruf ein signiertes JWT zurück oder setzen Sie ein HTTP-only-Cookie. Verlangen Sie dieses Token an Ihrem geschützten Formularübermittlungs-Endpunkt, damit Sie wissen, dass das CAPTCHA von demselben Benutzer gelöst wurde, der die nachgelagerte Anfrage stellt.
+- **Validieren Sie Eingaben, bevor Sie `createChallenge` aufrufen.** Wenn `difficulty`, `amount` oder `ttlSeconds` aus Konfigurations- oder Anfragedaten stammen, prüfen Sie zuerst, ob es positive endliche Ganzzahlen sind – ungültige Werte lösen einen Fehler aus.
+- **Verwenden Sie `replayPrevention: 'remote'` für Multi-Instanz- oder Serverless-Deployments.** Der Standard-Store `'local'` ist pro Prozess, sodass er Replays über separate Node.js-Prozesse hinweg nicht erkennen kann. Übergeben Sie einen verteilten Store-Adapter (z. B. auf Redis basierend) und setzen Sie `replayPrevention: 'remote'` in den Optionen Ihres `verifySolution`.
+- **Verwenden Sie `onWarning` für Telemetrie.** Der `onWarning`-Callback erhält ein strukturiertes `VerifyWarning`-Objekt mit einer typisierten `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'` usw.) und einer menschenlesbaren `message`. Verdrahten Sie ihn mit Ihrer Observability-Pipeline, ohne ausführliche Debug-Logs in der Produktion zu aktivieren.
+
+<Warning>
+  Validieren Sie alle benutzer- oder konfigurationsgesteuerten Werte für `difficulty`, `amount` und `ttlSeconds`, bevor Sie sie an `createChallenge()` übergeben. Ungültige Werte lösen einen Fehler aus.
+</Warning>

@@ -1,0 +1,143 @@
+---
+title: "Fehlerbehebung"
+sidebarTitle: "Fehlerbehebung"
+description: "Diagnostizieren und beheben Sie häufige Probleme mit Ribaunt CAPTCHA: RIBAUNT_SECRET-Fehler, Web-Crypto-Fehler, abgelaufene Token, Replay-Erkennung und Widget-Laden."
+---
+
+Dieser Leitfaden behandelt die häufigsten Probleme, denen Sie bei der Integration von Ribaunt begegnen können, und wie Sie sie lösen. Für jedes Problem finden Sie die wahrscheinliche Ursache und die genaue Behebung, die anzuwenden ist.
+
+<AccordionGroup>
+  <Accordion title='Fehler: "RIBAUNT_SECRET environment variable is not set!"'>
+    **Ursache:** `RIBAUNT_SECRET` fehlt in Ihrer Umgebung oder wird nicht in den Prozess geladen, bevor der erste Aufruf von `createChallenge` oder `verifySolution` erfolgt.
+
+    **Behebung:** Stellen Sie sicher, dass die Variable definiert ist, bevor Ihr Server seine erste Anfrage verarbeitet. Wenn Sie eine `.env`-Datei verwenden, laden Sie sie am Anfang Ihres Einstiegspunkts mit einem Tool wie `dotenv`:
+
+    ```ts
+    import 'dotenv/config'; // Must come before any ribaunt imports
+    import { createChallenge } from 'ribaunt';
+    ```
+
+    Für gehostete Runtimes (Vercel, Railway, Fly.io usw.) setzen Sie `RIBAUNT_SECRET` über das Umgebungsvariablen-Dashboard Ihrer Plattform, anstatt es in die Versionskontrolle einzuchecken. Rotieren Sie das Secret sofort, falls es jemals versehentlich offengelegt wird.
+  </Accordion>
+
+  <Accordion title='Widget-Fehler: "Web Crypto API is unavailable. Use HTTPS or localhost."'>
+    **Ursache:** Der Browser-Solver erfordert einen [sicheren Kontext](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts). Einfaches HTTP auf einem anderen Host als `localhost` qualifiziert sich nicht. Dies betrifft häufig Geräte in einem lokalen Netzwerk, auf die über eine IP-Adresse wie `http://192.168.x.x` zugegriffen wird.
+
+    **Behebung:**
+
+    - **Produktion:** Stellen Sie Ihre App immer über HTTPS bereit.
+    - **Entwicklung:** Verwenden Sie `http://localhost` anstelle der LAN-IP Ihres Rechners. Wenn andere Geräte im Netzwerk Ihren Dev-Server erreichen müssen, terminieren Sie TLS mit einem Tool wie [mkcert](https://github.com/FiloSottile/mkcert) oder einem lokalen Reverse-Proxy.
+  </Accordion>
+
+  <Accordion title='verifySolution gibt false zurück — reason: "expired-token"'>
+    **Ursache:** Die TTL des Challenge-Tokens ist abgelaufen, bevor der Browser seine Lösung eingereicht hat. Dies kann auf Seiten passieren, die lange zum Laden brauchen, in Formularen, in denen Benutzer mehrere Minuten verbringen, bevor sie absenden, oder wenn die Uhren von Server und Client erheblich abweichen.
+
+    **Behebung:** Erhöhen Sie `ttlSeconds` in Ihrem `createChallenge`-Aufruf, um Benutzern mehr Zeit zu geben. Der Standard liegt bei 30 Sekunden; erwägen Sie 120–300 für komplexe Seiten oder Formulare:
+
+    ```ts
+    // Allow up to 5 minutes to complete the form
+    const tokens = createChallenge(5, 4, 300);
+    ```
+  </Accordion>
+
+  <Accordion title='verifySolution gibt false zurück — reason: "replay-detected"'>
+    **Ursache:** Dieselben Challenge-Token wurden mehr als einmal eingereicht. Das ist beabsichtigt — Ribaunts Standard-`local`-Replay-Store markiert Token beim ersten Gebrauch als verbraucht und lehnt jede nachfolgende Einreichung ab.
+
+    **Behebung:** Wenn dies in normalen Benutzerflows passiert, bedeutet das höchstwahrscheinlich, dass Ihr Frontend dieselben Token erneut einreicht (z. B. bei einer Formular-Wiederholung). Stellen Sie für jeden Versuch frische Token aus, indem Sie Ihren Challenge-Endpoint vor dem erneuten Absenden erneut aufrufen.
+
+    Wenn Sie dies in **serverlosen oder Multi-Instanz-Deployments** sehen, liegt das Problem darin, dass jede Funktionsausführung ihren eigenen In-Memory-Store hat. In einer Instanz verbrauchte Token sind für andere unsichtbar. Wechseln Sie zu `replayPrevention: 'remote'` mit einem verteilten Store:
+
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          // Use Redis/Valkey SET NX EX for atomic consume semantics
+          const result = await redisClient.set(jti, '1', { NX: true, EXAT: expiresAt });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Widget startet die Verifizierung nicht automatisch">
+    **Ursache:** Das Attribut `auto-verify` fehlt oder das Widget befindet sich im Zustand `disabled`, was verhindert, dass `auto-verify` ausgelöst wird, selbst wenn es gesetzt ist.
+
+    **Behebung:** Fügen Sie dem HTML-Element `auto-verify="true"` hinzu oder `autoVerify={true}` im React-Wrapper:
+
+    ```html
+    <ribaunt-widget
+      challenge-endpoint="/api/challenge"
+      verify-endpoint="/api/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+    ```
+
+    Überprüfen Sie außerdem, ob `disabled` entweder nicht vorhanden ist oder explizit auf `"false"` gesetzt ist. Solange das Widget deaktiviert ist, wird `auto-verify` nicht ausgelöst.
+  </Accordion>
+
+  <Accordion title="Widget erscheint nicht oder JS-Fehler beim Laden">
+    **Ursache:** Das Widget-Skript wird nicht korrekt geladen. Häufige Ursachen sind ein falscher Pfad zur gebauten Datei, das Laden des Skripts ohne `type="module"` oder ein Bundler, der den Browser-Export des Pakets nicht korrekt auflöst.
+
+    **Behebung:** Laden Sie das Widget-Skript als Modul und stellen Sie sicher, dass der Pfad auf `dist/widget-browser.js` zeigt:
+
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+    ```
+
+    Wenn Sie das Widget selbst bundeln, stellen Sie sicher, dass Ihr Bundler die `browser`-Export-Bedingung aus dem Ribaunt-Paket auflöst. Lesen Sie die Dokumentation Ihres Frameworks nach, wie Sie Export-Bedingungen konfigurieren, falls das Widget tree-shaked oder nicht gefunden wird.
+  </Accordion>
+
+  <Accordion title="verifySolution gibt in serverlosen oder Edge-Deployments immer false zurück">
+    **Ursache:** Der Standard-`local`-Replay-Store lebt im Prozessspeicher. In serverlosen Umgebungen ist jede Funktionsausführung ein frischer Prozess, sodass in einer vorherigen Ausführung verbrauchte Token in der nächsten unbekannt sind. Dadurch behandelt der In-Memory-Store jede Einreichung als die erste — aber wenn zwei gleichzeitige Ausführungen kollidieren, können beide dasselbe Token verbrauchen oder keiner hält den Zustand lange genug, um vor Replay zu schützen.
+
+    **Behebung:** Wechseln Sie zu `replayPrevention: 'remote'` mit einem Redis- oder Valkey-Adapter, der atomare `SET NX EX`-Semantik verwendet:
+
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          const result = await redis.set(`ribaunt:${jti}`, '1', {
+            NX: true,
+            EXAT: expiresAt,
+          });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="React-Wrapper wirft einen SSR-Fehler in Next.js">
+    **Ursache:** Das `<ribaunt-widget>`-Web-Component registriert sich mit browser-only APIs wie `customElements` und `window`. Diese sind während des serverseitigen Renderings nicht verfügbar.
+
+    **Behebung:** Fügen Sie `'use client'` am Anfang jeder Komponentendatei hinzu, die `RibauntWidget` importiert oder rendert:
+
+    ```ts
+    'use client';
+    
+    import { RibauntWidget } from 'ribaunt/widget-react';
+    ```
+
+    Verpacken Sie die Komponente **nicht** mit `next/dynamic` — der Ribaunt-React-Wrapper kümmert sich bereits intern um den dynamischen Import des Browser-Bundles. Eine zweite Schicht dynamischen Imports kann diesen Mechanismus stören und Doppel-Laden oder Hydration-Mismatches verursachen.
+  </Accordion>
+</AccordionGroup>
+
+## Debug-Logging aktivieren
+
+Standardmäßig protokolliert Ribaunt Verifizierungswarnungen auf der Konsole, wenn `NODE_ENV` auf `development` gesetzt ist. In anderen Umgebungen sind Warnungen stumm, es sei denn, Sie aktivieren sie. Verwenden Sie die Option `debug`, um die Konsolenausgabe explizit zu aktivieren, oder `onWarning` für strukturiertes Logging, das in jeder Umgebung funktioniert.
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  debug: true, // Logs warnings to console in development
+  onWarning: (w) => console.log(w.reason, w.message),
+});
+```
+
+In `NODE_ENV=development` ist `debug` standardmäßig aktiviert — Sie müssen es während der lokalen Entwicklung nicht explizit übergeben. Verlassen Sie sich in der Produktion auf `onWarning` statt auf `debug: true`, um die Anwendungsprotokolle nicht mit signalarmem Rauschen zu überfluten.
+
+<Tip>
+  Verwenden Sie den `onWarning`-Callback in der Produktion, um strukturierte Warngründe (`invalid-token`, `expired-token`, `replay-detected` usw.) für das Monitoring zu erfassen, ohne Logs zu überfluten. Leiten Sie Warnereignisse an Ihre Observability-Plattform (Datadog, Sentry usw.) weiter, um Sichtbarkeit auf ungewöhnliche Muster zu erhalten, ohne ausführliche Konsolenausgabe zu aktivieren.
+</Tip>

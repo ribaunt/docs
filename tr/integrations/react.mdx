@@ -1,0 +1,133 @@
+---
+title: "React"
+sidebarTitle: "React"
+description: "RibauntWidget React sarmalayıcısını kullanarak React uygulamanıza türlenmiş geri çağrı prop'ları, imperative ref handle ve canlı prop senkronizasyonu ile CAPTCHA ekleyin."
+---
+
+Ribaunt, `ribaunt/widget-react` adresinde birinci sınıf bir React sarmalayıcısı sunar; size türlenmiş prop'lar, her widget olayı için geri çağrı prop'ları ve bir imperative ref handle sağlar — manuel DOM olay bağlantısı gerekmez. Sarmalayıcı ayrıca dinamik içe aktarmayı dahili olarak gerçekleştirir, böylece Next.js App Router bileşeninde bile SSR koruma kodu hakkında endişelenmenize gerek kalmaz.
+
+<Note>
+  Widget, Web Crypto API'sine dayanır ve bu nedenle **güvenli bir bağlam** gerektirir. Üretimde `https://`, yerel geliştirme sırasında ise `http://localhost` kullanın. Düz yerel ağ HTTP URL'leri bazı tarayıcılarda başarısız olabilir.
+</Note>
+
+## React sarmalayıcısını kullanma (önerilen)
+
+`ribaunt/widget-react` paketinden `RibauntWidget` bileşenini içe aktarın ve JSX'inizin herhangi bir yerine yerleştirin. Her yapılandırma seçeneği türlenmiş bir prop olarak mevcuttur ve her widget olayı bir `on*` geri çağrısına eşlenir.
+
+<Note>
+  **Next.js App Router** kullanıyorsanız dosyanın en üstüne `'use client'` ekleyin — ayrıntılar için [Next.js entegrasyon rehberine](/tr/integrations/nextjs) bakın.
+</Note>
+
+```tsx
+'use client'; // needed only in Next.js App Router
+
+import RibauntWidget from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  return (
+    <RibauntWidget
+      challengeEndpoint="/api/captcha/challenge"
+      verifyEndpoint="/api/captcha/verify"
+      autoVerify={true}
+      solveTimeout={15000}
+      onVerify={(detail) => console.log('Verified:', detail.solutions)}
+      onError={(detail) => console.error('Failed:', detail.error)}
+      onStateChange={(detail) => console.log('State:', detail.state)}
+    />
+  );
+}
+```
+
+## Imperative handle (ref)
+
+Kendi kodunuzdan `reset()`, `getState()` veya `startVerification()` çağırmak için — örneğin özel bir butondan doğrulamayı tetiklemek veya başarısız bir form gönderiminin ardından sıfırlamak için — `RibauntWidgetHandle` olarak türlenmiş bir `ref` iletin.
+
+```tsx
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  const widgetRef = useRef<RibauntWidgetHandle>(null);
+
+  return (
+    <>
+      <RibauntWidget
+        ref={widgetRef}
+        challengeEndpoint="/api/captcha/challenge"
+        verifyEndpoint="/api/captcha/verify"
+      />
+      <button onClick={() => widgetRef.current?.startVerification()}>
+        Verify manually
+      </button>
+      <button onClick={() => widgetRef.current?.reset()}>
+        Reset
+      </button>
+    </>
+  );
+}
+```
+
+Handle tarafından sunulan üç metot şunlardır:
+
+| Metot | Açıklama |
+| --- | --- |
+| `startVerification()` | Proof-of-work çözümünü programlı olarak başlatır. |
+| `reset()` | Widget'ı başlangıç durumuna döndürür. |
+| `getState()` | Mevcut widget durum dizesini ya da widget henüz monte edilmediyse `''` döndürür. |
+
+## Canlı prop güncellemeleri
+
+<Info>
+  React sarmalayıcısı, monte edildikten sonra aşağıdaki prop'ları temel web bileşenine senkronize eder — bu değerlerden herhangi biri değiştiğinde widget'ı yeniden monte etmeniz (örneğin `key` değiştirerek) **gerekmez**:
+
+  - `challengeEndpoint`
+  - `verifyEndpoint`
+  - `autoVerify`
+  - `showWarning`
+  - `warningMessage`
+  - `solveTimeout`
+  - `disabled`
+
+  Mevcut entegrasyonunuz bu prop'lardan biri değiştiğinde `key` değiştirerek yeniden montajı zorlamışsa, bu geçici çözümü güvenle kaldırabilirsiniz.
+</Info>
+
+## Ham web bileşenini kullanma
+
+DOM olay dinleyicileri üzerinde tam kontrol istediğiniz ileri durumlarda, web bileşenini bir yan etki içe aktarması ile kendiniz kaydedebilir ve JSX'te doğrudan `<ribaunt-widget>` öğesini kullanabilirsiniz. Ribaunt hem `HTMLElementTagNameMap` hem de `JSX.IntrinsicElements` için TypeScript bildirimleri sağlar, böylece her iki şekilde de tip güvenliği elde edersiniz.
+
+```tsx
+import { useEffect, useRef } from 'react';
+
+// Side-effect import — registers the custom element
+import 'ribaunt/widget';
+
+export default function MyForm() {
+  const widgetRef = useRef<import('ribaunt/widget').RibauntWidgetElement>(null);
+
+  useEffect(() => {
+    const widget = widgetRef.current;
+    if (!widget) return;
+
+    const handleVerify = (e: Event) => {
+      console.log('Verified!', (e as CustomEvent).detail.solutions);
+    };
+
+    widget.addEventListener('verify', handleVerify);
+    return () => widget.removeEventListener('verify', handleVerify);
+  }, []);
+
+  return (
+    <ribaunt-widget
+      ref={widgetRef}
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+    />
+  );
+}
+```
+
+<Note>
+  Ham web bileşeni yaklaşımını sunucu tarafında render edilen bir ortamda kullanırken, içe aktarmayı kendiniz korumalısınız (örneğin bir `useEffect` içine alarak) ki SSR sırasında çalışmasın. `ribaunt/widget-react` sarmalayıcısı bunu otomatik olarak halleder ve bu yüzden önerilen yaklaşımdır.
+</Note>
+
+Prop'ların, özniteliklerin ve olayların tam listesi için [Widget yapılandırması](/tr/widget/configuration) ve [Widget olayları](/tr/widget/events) sayfalarına bakın.

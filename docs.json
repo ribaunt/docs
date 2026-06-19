@@ -26,72 +26,225 @@
     }
   },
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Documentation",
-        "groups": [
+        "language": "en",
+        "tabs": [
           {
-            "group": "Get Started",
-            "pages": [
-              "introduction",
-              "quickstart"
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Get Started",
+                "pages": [
+                  "introduction",
+                  "quickstart"
+                ]
+              },
+              {
+                "group": "Core Concepts",
+                "pages": [
+                  "concepts/how-it-works",
+                  "concepts/replay-protection"
+                ]
+              },
+              {
+                "group": "Server Setup",
+                "pages": [
+                  "server/express",
+                  "server/nextjs"
+                ]
+              },
+              {
+                "group": "Frontend Integration",
+                "pages": [
+                  "integrations/html",
+                  "integrations/react",
+                  "integrations/nextjs",
+                  "integrations/vue"
+                ]
+              },
+              {
+                "group": "Widget",
+                "pages": [
+                  "widget/configuration",
+                  "widget/events",
+                  "widget/theming"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "guides/testing",
+                  "guides/troubleshooting"
+                ]
+              }
             ]
           },
           {
-            "group": "Core Concepts",
-            "pages": [
-              "concepts/how-it-works",
-              "concepts/replay-protection"
-            ]
-          },
-          {
-            "group": "Server Setup",
-            "pages": [
-              "server/express",
-              "server/nextjs"
-            ]
-          },
-          {
-            "group": "Frontend Integration",
-            "pages": [
-              "integrations/html",
-              "integrations/react",
-              "integrations/nextjs",
-              "integrations/vue"
-            ]
-          },
-          {
-            "group": "Widget",
-            "pages": [
-              "widget/configuration",
-              "widget/events",
-              "widget/theming"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/testing",
-              "guides/troubleshooting"
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "Server API",
+                "pages": [
+                  "api/create-challenge",
+                  "api/verify-solution",
+                  "api/solve-challenge"
+                ]
+              },
+              {
+                "group": "Types",
+                "pages": [
+                  "api/types"
+                ]
+              }
             ]
           }
         ]
       },
       {
-        "tab": "API Reference",
-        "groups": [
+        "language": "tr",
+        "tabs": [
           {
-            "group": "Server API",
-            "pages": [
-              "api/create-challenge",
-              "api/verify-solution",
-              "api/solve-challenge"
+            "tab": "Dokümantasyon",
+            "groups": [
+              {
+                "group": "Başlarken",
+                "pages": [
+                  "tr/introduction",
+                  "tr/quickstart"
+                ]
+              },
+              {
+                "group": "Temel Kavramlar",
+                "pages": [
+                  "tr/concepts/how-it-works",
+                  "tr/concepts/replay-protection"
+                ]
+              },
+              {
+                "group": "Sunucu Kurulumu",
+                "pages": [
+                  "tr/server/express",
+                  "tr/server/nextjs"
+                ]
+              },
+              {
+                "group": "Önyüz Entegrasyonu",
+                "pages": [
+                  "tr/integrations/html",
+                  "tr/integrations/react",
+                  "tr/integrations/nextjs",
+                  "tr/integrations/vue"
+                ]
+              },
+              {
+                "group": "Widget",
+                "pages": [
+                  "tr/widget/configuration",
+                  "tr/widget/events",
+                  "tr/widget/theming"
+                ]
+              },
+              {
+                "group": "Rehberler",
+                "pages": [
+                  "tr/guides/testing",
+                  "tr/guides/troubleshooting"
+                ]
+              }
             ]
           },
           {
-            "group": "Types",
-            "pages": [
-              "api/types"
+            "tab": "API Referansı",
+            "groups": [
+              {
+                "group": "Sunucu API",
+                "pages": [
+                  "tr/api/create-challenge",
+                  "tr/api/verify-solution",
+                  "tr/api/solve-challenge"
+                ]
+              },
+              {
+                "group": "Tipler",
+                "pages": [
+                  "tr/api/types"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "de",
+        "tabs": [
+          {
+            "tab": "Dokumentation",
+            "groups": [
+              {
+                "group": "Erste Schritte",
+                "pages": [
+                  "de/introduction",
+                  "de/quickstart"
+                ]
+              },
+              {
+                "group": "Kernkonzepte",
+                "pages": [
+                  "de/concepts/how-it-works",
+                  "de/concepts/replay-protection"
+                ]
+              },
+              {
+                "group": "Server-Einrichtung",
+                "pages": [
+                  "de/server/express",
+                  "de/server/nextjs"
+                ]
+              },
+              {
+                "group": "Frontend-Integration",
+                "pages": [
+                  "de/integrations/html",
+                  "de/integrations/react",
+                  "de/integrations/nextjs",
+                  "de/integrations/vue"
+                ]
+              },
+              {
+                "group": "Widget",
+                "pages": [
+                  "de/widget/configuration",
+                  "de/widget/events",
+                  "de/widget/theming"
+                ]
+              },
+              {
+                "group": "Anleitungen",
+                "pages": [
+                  "de/guides/testing",
+                  "de/guides/troubleshooting"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API-Referenz",
+            "groups": [
+              {
+                "group": "Server-API",
+                "pages": [
+                  "de/api/create-challenge",
+                  "de/api/verify-solution",
+                  "de/api/solve-challenge"
+                ]
+              },
+              {
+                "group": "Typen",
+                "pages": [
+                  "de/api/types"
+                ]
+              }
             ]
           }
         ]

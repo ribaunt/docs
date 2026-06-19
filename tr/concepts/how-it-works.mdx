@@ -1,0 +1,102 @@
+---
+title: "Ribaunt nasıl çalışır"
+sidebarTitle: "Nasıl çalışır"
+description: "Ribaunt'un arkasındaki proof-of-work challenge-response akışını anlayın: JWT challenge yayınlama, Web Crypto ile tarayıcıda çözüm ve sunucu tarafı doğrulama."
+---
+
+Ribaunt, sunucunuz bir gönderimi kabul etmeden önce tarayıcının küçük ama ölçülebilir miktarda hesaplama işi yapmasını sağlayarak formlarınızı ve hassas işlemlerinizi korur. Geleneksel CAPTCHA'ların aksine bu, arka planda sessizce gerçekleşir: sunucunuz kriptografik bir bulmaca yayınlar, tarayıcı geçerli bir yanıt bulana kadar SHA-256 hash'leri üzerinden geçer ve sunucunuz devam etmeden önce kanıtı doğrular. Resim ızgaraları yok, onay kutusu ritüelleri yok — yalnızca matematik.
+
+## Challenge-response akışı
+
+Her Ribaunt doğrulaması üç adımlı bir döngüyü takip eder.
+
+<Steps>
+  <Step title="Sunucu challenge token'larını yayınlar">
+    Sunucunuz, imzalı bir JWT token dizisi üreten `createChallenge()` fonksiyonunu çağırır. Her token; rastgele bir challenge dizesi, zorluk seviyesi (kazanan hash'in kaç öndeki sıfırla başlaması gerektiği), bir son kullanma zaman damgası ve replay'i önlemek için benzersiz bir token kimliği (`jti`) kodlar. Token'lar `RIBAUNT_SECRET` ile imzalandığından istemci tarafından sahte olarak üretilemez veya değiştirilemez.
+
+    ```ts
+    import { createChallenge } from 'ribaunt';
+    
+    // Issue 4 challenges at difficulty 5, valid for 60 seconds
+    const challenges = createChallenge(5, 4, 60);
+    ```
+  </Step>
+  <Step title="Tarayıcı challenge'ları çözer">
+    Tarayıcı token'ları alır ve çözücüyü çalıştırır. Her token için challenge dizesini ve zorluğu çözer, ardından aday nonce'lar üzerinden tek tek geçer — `0`, `1`, `2`, … — Web Crypto API'sini kullanarak her biri için `SHA-256(challenge + nonce)` hesaplar. Hash'i gereken sayıda öndeki sıfırla başlayan bir nonce bulduğu anda, bu nonce'u ve hash'i çözüm olarak kaydeder ve sonraki token'a geçer.
+  </Step>
+  <Step title="Sunucu çözümleri doğrular">
+    Tarayıcı, bulduğu çözümlerle birlikte orijinal token'ları gönderir. Sunucunuz `verifySolution()` fonksiyonunu çağırır ve bu fonksiyon:
+
+    - `RIBAUNT_SECRET` ile JWT imzasını doğrular
+    - Token'ın süresinin dolmadığını kontrol eder
+    - `SHA-256(challenge + nonce)` değerini yeniden hesaplar ve gereken öndeki sıfırlarla başladığını onaylar
+    - Token'ın daha önce hiç kullanılmadığından emin olmak için `jti` değerini replay deposunda kontrol eder
+
+    Yalnızca tüm kontroller başarılıysa `verifySolution()` `true` döner.
+
+    ```ts
+    import { verifySolution } from 'ribaunt';
+    
+    const valid = await verifySolution(tokens, solutions);
+    
+    if (!valid) {
+      return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
+    }
+    ```
+  </Step>
+</Steps>
+
+## Challenge token'ları
+
+Her challenge token'ı standart imzalı bir JWT'dir. Çözüldüğünde yükü şunları içerir:
+
+| Alan | Açıklama |
+| --- | --- |
+| `challenge` | Her token için taze üretilen rastgele bir base64 dizesi |
+| `difficulty` | SHA-256 hash'inin başlaması gereken öndeki sıfır sayısı |
+| `expires` | Bu süreden sonra token'ın reddedileceği Unix zaman damgası (saniye) |
+| `jti` | Bu token'ı benzersiz olarak tanımlayan ve replay önleme için kullanılan bir UUID |
+
+Token'lar, sunucunuzda ayarladığınız bir ortam değişkeni olan `RIBAUNT_SECRET` ile imzalanır. Token'ları üretebilecek veya doğrulayabilecek tek taraf sunucunuzdur — tarayıcı yalnızca imzalı, opak JWT'yi görür.
+
+<Note>
+  `RIBAUNT_SECRET` değerini asla tarayıcıya ifşa etmeyin. Next.js'te bu değişkenin önüne `NEXT_PUBLIC_` getirmeyin.
+</Note>
+
+## Zorluk
+
+`difficulty` parametresi, kazanan hash'in kaç öndeki sıfıra sahip olması gerektiğini kontrol eder. Eklenen her ek sıfır, rastgele bir hash'in koşulu sağlama olasılığını 16 kat azalttığından, her artış beklenen hash deneme sayısını — ve dolayısıyla çözüm süresini — kabaca iki katına çıkarır.
+
+| Ayar | Yaklaşık çözüm süresi | Önerilen kullanım |
+| --- | --- | --- |
+| `createChallenge(4, 4, 30)` | Milisaniyeler | Hızlı / arka plan kontrolleri |
+| `createChallenge(5, 4, 60)` | ~1 saniye | Orta / form gönderimi |
+| `createChallenge(5, 8, 120)` | ~2 saniye | Yüksek / hassas işlemler |
+
+<Warning>
+  `6` üzerindeki değerler tarayıcıların donmasına neden olabilir. `difficulty`, `amount` veya `ttlSeconds` değerlerinin kullanıcılar veya harici girdiler tarafından doğrulama yapılmadan kontrol edilmesine izin vermeyin.
+</Warning>
+
+## Durumsuz tasarım
+
+Ribaunt, challenge yayınlamak veya doğrulamak için bir veritabanı gerektirmez. Sunucunun bir çözümü doğrulamak için ihtiyaç duyduğu tüm bilgiler — challenge dizesi, gereken zorluk ve son kullanma tarihi — doğrudan imzalı JWT token içinde kodlanmıştır. Doğrulama, JWT imzasını kontrol etmeye ve hash'i yeniden hesaplamaya indirgenir; çekirdek kanıt kontrolü için bir veri deposuna gidiş-dönüş gerekmez.
+
+Replay koruması, durum gerektiren tek alandır. Bu olmadan, geçerli tek bir çözüm token'ın TTL penceresi içinde tekrar tekrar gönderilebilir. Ribaunt bunu hafif bir replay deposuyla halleder:
+
+- Varsayılan `local` modunda, mevcut Node.js süreci içindeki kullanılan token kimliklerini bir süreç içi `Map` izler.
+- `remote` modunda, birden fazla süreç veya sunucusuz fonksiyon örneğinin hangi token'ların zaten kullanıldığına dair tutarlı bir görüş paylaşmasını sağlayan dağıtık bir depo (örneğin Redis veya Valkey) sağlarsınız.
+
+Bu, oturum tabloları, challenge veritabanları olmadan sunucu altyapınızı basit tutar ve aynı zamanda şemayı güvenli kılan replay korumasını sağlar.
+
+<Note>
+  Tam bir Redis örneği dahil olmak üzere replay korumasını yapılandırmaya ilişkin daha fazla ayrıntı için [Replay Koruması](/tr/concepts/replay-protection) sayfasına bakın.
+</Note>
+
+## Güvenli bağlam gereksinimi
+
+Tarayıcı çözücüsü, tarayıcıların yalnızca [güvenli bağlamlarda](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) sunduğu Web Crypto API'sini (`crypto.subtle`) kullanır. Bu, istemci tarafı çözümün şu durumlarda çalıştığı anlamına gelir:
+
+- `https://` kaynakları (üretim)
+- `http://localhost` (yerel geliştirme)
+
+`http://192.168.x.x` gibi düz LAN adresleri, özellikle mobil tarayıcılarda `crypto.subtle` özelliğini sunmayabilir. Üretimde uygulamanızı her zaman HTTPS üzerinden sunun.

@@ -1,0 +1,101 @@
+---
+title: "Test etme"
+sidebarTitle: "Test etme"
+description: "Uçtan uca akışlar için solveChallenge kullanarak ve birim testlerde widget'ı atlayarak Ribaunt CAPTCHA entegrasyonunuzu nasıl test edeceğinizi öğrenin."
+---
+
+Ribaunt, `solveChallenge()` — eşzamanlı, sunucu tarafı bir çözücü — sunar; bu da challenge ve verify endpoint'leriniz için tarayıcı olmadan otomatik testler yazmayı kolaylaştırır. Headless bir tarayıcı kurmak veya iç durumu sahte verilerle taklit etmek yerine, tüm challenge → çözme → doğrulama döngüsünü doğrudan test paketinizden yönetebilirsiniz.
+
+## Testlerde solveChallenge kullanma
+
+`solveChallenge`, tarayıcının yürüttüğü proof-of-work algoritmasının aynısını çalıştırır; ancak eşzamanlı ve Node.js içinde. Sunucunuzun yapacağı gibi bir challenge üretebilir, tarayıcının yapacağı gibi çözebilir ve ardından sonucu `verifySolution`'a besleyebilirsiniz — hepsi tek bir test içinde.
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Generate a challenge (as your server would)
+const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
+
+// Solve it (as the browser would)
+const solutions = solveChallenge(tokens);
+
+// Verify the solution (as your verify endpoint would)
+const valid = await verifySolution(tokens, solutions);
+console.assert(valid === true);
+```
+
+<Tip>
+  Testleri hızlı tutmak için düşük zorluk (3–4) kullanın. Daha yüksek zorluk CPU-yoğun testleri yavaşlatır. Üretim için zorluk 5 uygundur ancak test paketlerini gözle görülür şekilde yavaşlatır.
+</Tip>
+
+## Zaman aşımı korumalarıyla test etme
+
+CI'da kontrolden çıkmış bir çözücüye karşı güvenlik ağına ihtiyacınız olduğunda, `solveChallenge`'a koruma seçenekleri iletin. Duvar saati süresini, hash deneme sayısını veya her ikisini birden sınırlayabilirsiniz.
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,    // Give up after 2 seconds
+  maxIterations: 500_000, // Or after 500k attempts
+});
+```
+
+Korumalardan herhangi birine ulaşılırsa, `solveChallenge` o token için `undefined` döndürür. Testiniz, `verifySolution`'a iletmeden önce dönüş değerinin tanımlı olduğunu doğrulamalıdır.
+
+## Replay korumasını test etme
+
+Ribaunt'un varsayılan `local` replay modu, herhangi bir token'ın aynı süreç içinde birden fazla kez doğrulanmasını engeller. Bu davranışı, aynı çözümü iki kez göndererek testlerinizde doğrudan teyit edebilirsiniz.
+
+```ts
+const tokens = createChallenge(3, 2, 30);
+const solutions = solveChallenge(tokens);
+
+const first = await verifySolution(tokens, solutions);
+console.assert(first === true);  // Passes
+
+const second = await verifySolution(tokens, solutions);
+console.assert(second === false); // Rejected — replay detected
+```
+
+İkinci çağrı `false` döndürür çünkü challenge JTI'ları ilk kullanımda tüketilir.
+
+## Replay koruması devre dışı bırakılarak test etme
+
+Bazı birim testlerin, birden fazla iddiada aynı token'ları yeniden kullanması gerekir — örneğin, replay durumundan bağımsız olarak geçerli bir çözümün her zaman iş mantığınızdan geçtiğini test etmek için. Tek bir `verifySolution` çağrısı için replay korumasını devre dışı bırakabilirsiniz.
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'disabled',
+});
+```
+
+<Note>
+  `replayPrevention: 'disabled'` ifadesini yalnızca testlerde kullanın. Üretim verify endpoint'inizde asla replay korumasını devre dışı bırakmayın; bu, saldırganların ele geçirilmiş çözümleri yeniden kullanmasına olanak tanır.
+</Note>
+
+## Doğrulama uyarılarını yakalama
+
+Bir doğrulamanın _neden_ başarısız olduğunu — yalnızca `false` döndürdüğünü değil — doğrulamak istediğinizde `onWarning` callback'ini kullanın. Bu, özellikle süresi dolmuş token'lar veya geçersiz çözümler gibi uç durumları test etmek için yararlıdır.
+
+```ts
+const warnings: string[] = [];
+
+const valid = await verifySolution(tokens, badSolutions, {
+  onWarning: (w) => warnings.push(w.reason),
+});
+
+// warnings will contain 'invalid-solution' etc.
+```
+
+Uyarı nesnesindeki `reason` alanı aşağıdaki değerlerden biri olabilir:
+
+| Sebep | Ne zaman tetiklenir |
+| --- | --- |
+| `invalid-token` | JWT bozuk, kurcalanmış veya bilinmeyen bir secret kullanıyor |
+| `expired-token` | Challenge'ın TTL'i, çözüm gönderilmeden önce geçti |
+| `invalid-solution` | Gönderilen nonce, gerekli sayıda baştaki sıfırı olan bir hash üretmiyor |
+| `replay-detected` | Aynı token JTI'i, replay store tarafından zaten tüketilmiş |
+| `configuration-error` | Gerekli bir seçenek (ör. `replayStore`) eksik veya yanlış yapılandırılmış |
+
+<Warning>
+  `solveChallenge` eşzamanlı ve CPU yoğundur. Üretim istek işleyicilerinde kullanmayın — yalnızca testler ve araçlar için tasarlanmıştır.
+</Warning>

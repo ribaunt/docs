@@ -1,0 +1,25 @@
+---
+title: "Express.js"
+sidebarTitle: "Express"
+description: "Ribaunt'un createChallenge ve verifySolution fonksiyonlarını kullanarak bir Express.js sunucusunda challenge oluşturma ve çözüm doğrulama uç noktaları kurun."
+---
+
+Bu rehber, bir Express.js sunucusuna iki Ribaunt CAPTCHA uç noktası eklemenizde size yol gösterir: biri istemciye imzalı proof-of-work challenge'ları yayınlayan, diğeri ise isteğe güvenmeden önce çözülmüş çözümleri doğrulayan. Her iki uç nokta da durumsuzdur — Ribaunt tüm challenge durumunu imzalı bir JWT içine kodlar, bu nedenle veritabanı gerekmez.
+
+## Ön koşullar
+
+- Node.js 18 veya üzeri
+- Projenizde kurulu `express` ve `ribaunt`
+- Güçlü bir rastgele dizeye ayarlanmış bir `RIBAUNT_SECRET` ortam değişkeni
+
+## En iyi uygulamalar
+
+- **Challenge uç noktasına hız sınırı uygulayın.** Tek bir IP'nin dakikada kaç challenge isteyebileceğini sınırlamak için [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit) kullanın. Bu olmadan bir saldırgan çevrimdışı kaba kuvvet saldırıları için token toplayabilir.
+- **Doğrulamayı bir oturuma bağlayın.** Başarılı bir `verifySolution` çağrısından sonra imzalı bir JWT döndürün veya HTTP-only bir çerez ayarlayın. Korunan form gönderim uç noktanızda bu token'ı zorunlu kılın, böylece CAPTCHA'nın aynı kullanıcı tarafından çözüldüğünden emin olun.
+- **`createChallenge` çağrısından önce girişleri doğrulayın.** `difficulty`, `amount` veya `ttlSeconds` değerleri yapılandırmadan veya istek verisinden geliyorsa, önce bunların pozitif sonlu tam sayılar olduğunu kontrol edin — geçersiz değerler hata fırlatır.
+- **Çoklu örnek veya sunucusuz dağıtımlar için `replayPrevention: 'remote'` kullanın.** Varsayılan `'local'` deposu süreç başına olduğundan, ayrı Node.js süreçleri arasındaki replay'leri algılayamaz. Dağıtık bir depo adaptörü iletin (örn. Redis destekli) ve `verifySolution` seçeneklerinizde `replayPrevention: 'remote'` ayarlayın.
+- **Telemetri için `onWarning` kullanın.** `onWarning` geri çağrısı, yapılandırılmış bir `VerifyWarning` nesnesi alır; bu nesne türlenmiş bir `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'` vb.) ve insan tarafından okunabilir bir `message` içerir. Üretimde ayrıntılı hata ayıklama günlüklerini etkinleştirmeden gözlemlenebilirlik hattınıza bağlayın.
+
+<Warning>
+  Kullanıcı veya yapılandırma tarafından kontrol edilen `difficulty`, `amount` ve `ttlSeconds` değerlerini `createChallenge()` fonksiyonuna iletmeden önce doğrulayın. Geçersiz değerler hata fırlatır.
+</Warning>

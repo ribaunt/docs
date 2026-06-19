@@ -1,0 +1,77 @@
+---
+title: "Willkommen!"
+sidebarTitle: "Einführung"
+description: "Erfahren Sie, was Ribaunt ist, wie Proof-of-Work-CAPTCHA Ihre Formulare und APIs schützt und was Ribaunt zustandslos und einfach integrierbar macht."
+---
+
+Ribaunt ist eine zustandslose Proof-of-Work-CAPTCHA-Bibliothek für Node.js und moderne Browser. Anstatt sich auf eine zentrale Datenbank oder einen Drittanbieterdienst zu verlassen, um den Challenge-Status zu verfolgen, kodiert Ribaunt alle für Ihren Server erforderlichen Informationen direkt in ein signiertes JWT. Ihr Server stellt Challenges aus, der Browser löst sie, und die Verifizierung erfolgt durch eine einfache Signaturprüfung – ohne externen Speicher. Es wurde für Entwickler entwickelt, die einen zuverlässigen Bot-Schutz ohne den operativen Aufwand der Verwaltung von gemeinsamem Zustand wünschen.
+
+## Funktionsweise
+
+Der Ablauf besteht aus drei Schritten: Ihr Server erstellt eine signierte JWT-Challenge, das Browser-Widget führt eine Proof-of-Work-Berechnung durch, um eine gültige Nonce zu erzeugen, und Ihr Server überprüft erneut die Signatur und die Nonce, bevor er eine Aktion akzeptiert. Da die Challenge-Payload in sich geschlossen und mit Ihrem `RIBAUNT_SECRET` signiert ist, kann der Server sie jederzeit verifizieren, ohne zwischen Anfragen etwas zu persistieren.
+
+Für einen tieferen Einblick in die kryptografischen Details und Replay-Schutz-Strategien siehe die Seite [Funktionsweise](/de/concepts/how-it-works).
+
+## Hauptfunktionen
+
+<CardGroup cols={2}>
+  <Card title="Zustandslos" icon="database">
+    Challenges sind signierte JWTs – keine Datenbank, kein Cache und kein gemeinsamer Session-Speicher erforderlich, um sie auszustellen oder zu verifizieren.
+  </Card>
+
+  <Card title="Browser-Widget" icon="window">
+    Eine integrierte Web Component funktioniert mit reinem HTML. Ein React-Wrapper (`ribaunt/widget-react`) integriert sich mit React und Next.js.
+  </Card>
+
+  <Card title="Replay-Schutz" icon="shield-check">
+    Lokaler (prozessbezogener) Replay-Schutz ist standardmäßig aktiviert. Für Serverless- oder Multi-Instanz-Deployments können Sie einen Redis/Valkey-Store anbinden.
+  </Card>
+
+  <Card title="Vollständig typisiert" icon="brackets-curly">
+    Geschrieben in TypeScript mit vollständigen Typdeklarationen. Kein `@types`-Paket erforderlich.
+  </Card>
+
+  <Card title="Konfigurierbarer Schwierigkeitsgrad" icon="sliders">
+    Stellen Sie `difficulty`, `amount` und `ttlSeconds` pro Endpunkt ein, um Sicherheit und Benutzererfahrung auszubalancieren.
+  </Card>
+
+  <Card title="Anpassbares Design" icon="palette">
+    Gestalten Sie das Widget mit CSS Custom Properties – passen Sie es an jedes Design-System an, ohne Shadow-DOM-Interna anzurühren.
+  </Card>
+</CardGroup>
+
+## Installation
+
+Installieren Sie Ribaunt von npm mit dem Paketmanager Ihrer Wahl.
+
+<CodeGroup>
+
+```bash npm
+npm install ribaunt
+```
+
+```bash yarn
+yarn add ribaunt
+```
+
+```bash pnpm
+pnpm add ribaunt
+```
+
+</CodeGroup>
+
+<Note>
+  Das Lösen im Browser erfordert einen sicheren Kontext – verwenden Sie HTTPS in der Produktion oder `http://localhost` während der Entwicklung. Das Laden des Widgets von einer einfachen LAN-Adresse wie `http://192.168.x.x` schlägt fehl, da die Web Crypto API in nicht-sicheren Kontexten nicht verfügbar ist.
+</Note>
+
+## Nächste Schritte
+
+<CardGroup cols={2}>
+  <Card title="Schnellstart" icon="rocket" href="/de/quickstart">
+    Richten Sie Ihr Secret ein, erstellen Sie Server-Endpunkte und fügen Sie das Widget in unter fünf Minuten zu Ihrer Seite hinzu.
+  </Card>
+
+  <Card title="Funktionsweise" icon="magnifying-glass" href="/de/concepts/how-it-works">
+    Verstehen Sie den vollständigen Proof-of-Work-Ablauf, die JWT-Challenge-Struktur und den Replay-Schutz im Detail.
+  </Card>
+</CardGroup>

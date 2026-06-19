@@ -1,0 +1,102 @@
+---
+title: "Vanilla JS"
+sidebarTitle: "HTML / Vanilla JS"
+description: "Ribaunt CAPTCHA web bileşenini herhangi bir HTML sayfasına framework olmadan gömün. Form gönderimini kontrol etmek için verify ve error olaylarını dinleyin."
+---
+
+`<ribaunt-widget>`, herhangi bir modern tarayıcıda framework olmadan çalışan standart bir Web Bileşenidir. Tek bir ES modül script'i yüklersiniz, öğeyi işaretlemenize yerleştirirsiniz ve birkaç olay dinleyicisi bağlarsınız — derleme adımı gerekmez.
+
+<Note>
+  Widget, yalnızca **güvenli bir bağlamda** kullanılabilen Web Crypto API'sine dayanır. Üretimde `https://`, yerel geliştirme sırasında ise `http://localhost` kullanın. `http://192.168.x.x` gibi düz yerel ağ URL'leri çalışmaz.
+</Note>
+
+## Tam örnek
+
+Aşağıdaki kod parçası dört adımın tamamını tek başına çalışan bir HTML sayfasında bir araya getirir.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Secure Form</title>
+  <!-- Adjust the path to match your static file hosting -->
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+</head>
+<body>
+  <form id="secure-form" action="/api/submit" method="POST">
+    <h2>Please verify you are human</h2>
+
+    <ribaunt-widget
+      id="captcha"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      solve-timeout="15000"
+    ></ribaunt-widget>
+
+    <!-- Keep disabled until the verify event fires -->
+    <button type="submit" id="submit-btn" disabled>Submit</button>
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const widget    = document.getElementById('captcha');
+      const submitBtn = document.getElementById('submit-btn');
+
+      widget.addEventListener('verify', (e) => {
+        console.log('User verified!', e.detail.solutions);
+        submitBtn.disabled = false;
+      });
+
+      widget.addEventListener('error', (e) => {
+        console.error('CAPTCHA failed:', e.detail.error);
+        if (e.detail.timeout) {
+          console.warn('Solving timed out — try again.');
+        }
+        submitBtn.disabled = true;
+      });
+
+      // Optional: react to intermediate state transitions
+      widget.addEventListener('state-change', (e) => {
+        console.log('Widget state:', e.detail.state);
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+## Widget'ı biçimlendirme
+
+Widget'ın iç yapısı bir Shadow DOM içinde kapsüllenmiştir, bu yüzden standart torun seçicileri bunlara erişemez. Ancak host öğesine kapsamlanmış CSS özel özelliklerini geçersiz kılabilirsiniz.
+
+```css
+#captcha {
+  /* Override widget theme variables */
+  --ribaunt-background: #f0f0f0;
+  --ribaunt-border-color: #ccc;
+
+  /* Standard CSS applies to the host element itself */
+  margin: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+## Öznitelik referansı
+
+En sık kullanılan öznitelikler aşağıda listelenmiştir. Özniteliklerin, kabul edilen değerlerin ve varsayılanların tam listesi için [Widget yapılandırması](/tr/widget/configuration) sayfasına bakın.
+
+| Öznitelik | Açıklama |
+| --- | --- |
+| `challenge-endpoint` | Widget'ın challenge'ları çektiği URL. |
+| `verify-endpoint` | Widget'ın çözümleri gönderdiği URL. |
+| `auto-verify` | Mevcut olduğunda, widget bir tıklama gerektirmeden yükleme sonrası hemen çözmeye başlar. |
+| `show-warning` | Mevcut olduğunda, widget'ın üzerinde bir uyarı bandı görüntüler. |
+| `warning-message` | `show-warning` ayarlandığında gösterilen uyarı bandı için özel metin. |
+| `solve-timeout` | Bir `error` olayı tetiklenmeden önce çözüm için izin verilen maksimum milisaniye süresi. Zaman aşımını devre dışı bırakmak için boş bırakın. |
+| `disabled` | Tüm kullanıcı etkileşimini **ve** programlı `startVerification()` çağrılarını engeller. |
+
+<Note>
+  `disabled` durumdaki bir widget, `auto-verify` aracılığıyla da doğrulamayı başlatmaz. Widget'ın çalışmasını beklemeden önce `disabled` özniteliğini kaldırın.
+</Note>

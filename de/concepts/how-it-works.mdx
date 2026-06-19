@@ -1,0 +1,102 @@
+---
+title: "Wie Ribaunt funktioniert"
+sidebarTitle: "Funktionsweise"
+description: "Verstehen Sie den Proof-of-Work-Challenge-Response-Ablauf hinter Ribaunt: JWT-Challenge-Ausgabe, Browser-Lösung mit Web Crypto und serverseitige Verifizierung."
+---
+
+Ribaunt schützt Ihre Formulare und sensiblen Aktionen, indem der Browser einen kleinen, aber messbaren Rechenaufwand erbringt, bevor Ihr Server eine Übermittlung akzeptiert. Anders als bei herkömmlichen CAPTCHAs geschieht dies still im Hintergrund: Ihr Server stellt ein kryptografisches Rätsel, der Browser arbeitet sich durch SHA-256-Hashes, bis er eine gültige Antwort findet, und Ihr Server prüft den Nachweis, bevor er fortfährt. Keine Bildraster, keine Checkbox-Rituale – nur Mathematik.
+
+## Der Challenge-Response-Ablauf
+
+Jede Ribaunt-Verifizierung folgt einem dreistufigen Zyklus.
+
+<Steps>
+  <Step title="Server stellt Challenge-Tokens aus">
+    Ihr Server ruft `createChallenge()` auf, was ein Array signierter JWT-Tokens erzeugt. Jedes Token kodiert einen zufälligen Challenge-String, den Schwierigkeitsgrad (wie viele führende Nullen der erfolgreiche Hash haben muss), einen Ablaufzeitstempel und eine eindeutige Token-ID (`jti`) zur Replay-Verhinderung. Die Tokens werden mit Ihrem `RIBAUNT_SECRET` signiert, sodass sie vom Client nicht gefälscht oder manipuliert werden können.
+
+    ```ts
+    import { createChallenge } from 'ribaunt';
+    
+    // Issue 4 challenges at difficulty 5, valid for 60 seconds
+    const challenges = createChallenge(5, 4, 60);
+    ```
+  </Step>
+  <Step title="Browser löst die Challenges">
+    Der Browser empfängt die Tokens und startet den Solver. Für jedes Token dekodiert er den Challenge-String und den Schwierigkeitsgrad und iteriert dann durch Kandidaten-Nonces – `0`, `1`, `2`, … – wobei er für jeden `SHA-256(challenge + nonce)` mit der Web Crypto API berechnet. Sobald er eine Nonce findet, deren Hash mit der erforderlichen Anzahl führender Nullen beginnt, speichert er diese Nonce und den Hash als Lösung und geht zum nächsten Token über.
+  </Step>
+  <Step title="Server verifiziert die Lösungen">
+    Der Browser übermittelt die ursprünglichen Tokens zusammen mit den gefundenen Lösungen. Ihr Server ruft `verifySolution()` auf, was Folgendes tut:
+
+    - Verifiziert die JWT-Signatur mit `RIBAUNT_SECRET`
+    - Prüft, dass das Token nicht abgelaufen ist
+    - Berechnet `SHA-256(challenge + nonce)` neu und bestätigt, dass es mit den erforderlichen führenden Nullen beginnt
+    - Prüft die `jti` gegen den Replay-Store, um sicherzustellen, dass das Token noch nie verwendet wurde
+
+    Nur wenn jede Prüfung besteht, gibt `verifySolution()` `true` zurück.
+
+    ```ts
+    import { verifySolution } from 'ribaunt';
+    
+    const valid = await verifySolution(tokens, solutions);
+    
+    if (!valid) {
+      return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
+    }
+    ```
+  </Step>
+</Steps>
+
+## Challenge-Tokens
+
+Jedes Challenge-Token ist ein standardmäßig signiertes JWT. Beim Dekodieren enthält seine Payload:
+
+| Feld | Beschreibung |
+| --- | --- |
+| `challenge` | Ein zufälliger base64-String, der für jedes Token neu generiert wird |
+| `difficulty` | Die Anzahl der führenden Nullen, mit denen der SHA-256-Hash beginnen muss |
+| `expires` | Ein Unix-Zeitstempel (Sekunden), nach dem das Token abgelehnt wird |
+| `jti` | Eine UUID, die dieses Token eindeutig identifiziert und zur Replay-Verhinderung dient |
+
+Die Tokens werden mit `RIBAUNT_SECRET` signiert, einer Umgebungsvariablen, die Sie auf Ihrem Server festlegen. Ihr Server ist die einzige Instanz, die Tokens erzeugen oder validieren kann – der Browser sieht nur das signierte, undurchsichtige JWT.
+
+<Note>
+  Geben Sie `RIBAUNT_SECRET` niemals an den Browser weiter. In Next.js dürfen Sie es nicht mit `NEXT_PUBLIC_` präfixieren.
+</Note>
+
+## Schwierigkeitsgrad
+
+Der Parameter `difficulty` bestimmt, wie viele führende Nullen der erfolgreiche Hash haben muss. Da jede zusätzliche Null die Wahrscheinlichkeit, dass ein zufälliger Hash qualifiziert, um den Faktor 16 senkt, verdoppelt jede Erhöhung etwa die erwartete Anzahl an Hash-Versuchen – und damit die Lösungszeit.
+
+| Einstellung | Ungefähre Lösungszeit | Empfohlene Verwendung |
+| --- | --- | --- |
+| `createChallenge(4, 4, 30)` | Millisekunden | Schnelle / Hintergrundprüfungen |
+| `createChallenge(5, 4, 60)` | ~1 Sekunde | Moderat / Formularübermittlung |
+| `createChallenge(5, 8, 120)` | ~2 Sekunden | Hoch / sensible Aktionen |
+
+<Warning>
+  Werte über `6` können dazu führen, dass Browser einfrieren. Lassen Sie Benutzer oder externe Eingaben `difficulty`, `amount` oder `ttlSeconds` nicht ohne Validierung steuern.
+</Warning>
+
+## Zustandsloses Design
+
+Ribaunt benötigt keine Datenbank, um Challenges auszustellen oder zu verifizieren. Alle Informationen, die der Server zur Verifizierung einer Lösung benötigt – der Challenge-String, der erforderliche Schwierigkeitsgrad und das Ablaufdatum – sind direkt im signierten JWT-Token kodiert. Die Verifizierung reduziert sich auf die Prüfung der JWT-Signatur und die Neuberechnung des Hashs; für die Kernprüfung sind keine Round-Trips zu einem Datenspeicher erforderlich.
+
+Der Replay-Schutz ist der einzige Bereich, der einen Zustand erfordert. Ohne ihn könnte eine einzige gültige Lösung wiederholt innerhalb des TTL-Fensters des Tokens erneut übermittelt werden. Ribaunt löst dies mit einem leichtgewichtigen Replay-Store:
+
+- Im Standardmodus `local` verfolgt eine prozessinterne `Map` verwendete Token-IDs innerhalb des aktuellen Node.js-Prozesses.
+- Im Modus `remote` stellen Sie einen verteilten Store (z. B. Redis oder Valkey) bereit, damit mehrere Prozesse oder Serverless-Funktionsinstanzen eine konsistente Sicht darauf haben, welche Tokens bereits verbraucht wurden.
+
+So bleibt Ihre Server-Infrastruktur einfach – keine Session-Tabellen, keine Challenge-Datenbanken – und bietet trotzdem den Replay-Schutz, der das Schema sicher macht.
+
+<Note>
+  Weitere Details zur Konfiguration des Replay-Schutzes, einschließlich eines vollständigen Redis-Beispiels, finden Sie unter [Replay-Schutz](/de/concepts/replay-protection).
+</Note>
+
+## Anforderung an sicheren Kontext
+
+Der Browser-Solver verwendet die Web Crypto API (`crypto.subtle`), die Browser nur in [sicheren Kontexten](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) bereitstellen. Das bedeutet, dass clientseitiges Lösen funktioniert auf:
+
+- `https://`-Ursprüngen (Produktion)
+- `http://localhost` (lokale Entwicklung)
+
+Reine LAN-Adressen wie `http://192.168.x.x` stellen `crypto.subtle` möglicherweise nicht bereit, insbesondere in mobilen Browsern. Stellen Sie Ihre Anwendung in der Produktion immer über HTTPS bereit.

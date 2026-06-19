@@ -1,0 +1,142 @@
+---
+title: "Türler"
+sidebarTitle: "Türler"
+description: "Ribaunt için eksiksiz TypeScript tür başvurusu: ChallengeToken, ChallengeSolution, ReplayStore, VerifySolutionOptions, VerifyWarning ve daha fazlası."
+---
+
+Ribaunt, tüm genel API'leri için TypeScript türleri sağlar. Sunucu tarafı kodunuzda kullanmak için türleri `ribaunt`'tan içe aktarın.
+
+## `ChallengeToken`
+
+İmzalı bir JWT challenge token'ı. Bu, `createChallenge()`'ın döndürdüğü diziden gelen dize değeridir ve `verifySolution()`'a geri ilettiğiniz değerdir.
+
+```ts
+type ChallengeToken = string; // A signed JWT challenge token
+```
+
+## `ChallengeSolution`
+
+Tarayıcı çözücüsü (veya testlerde `solveChallenge()`) tarafından üretilen proof-of-work çözümü. `nonce`, challenge dizesiyle hash'lendiğinde gereken sayıda baştaki sıfır onaltılık basamak ile başlayan bir SHA-256 özeti üreten değerdir.
+
+```ts
+interface ChallengeSolution {
+  nonce: string; // The nonce that satisfies the PoW condition
+  hash: string;  // The SHA-256 hash (hex) produced by nonce
+}
+```
+
+## `ReplayStore`
+
+`replayPrevention`, `'remote'` olarak ayarlandığında dağıtık replay koruması sağlamak için uyguladığınız arayüz. Uygulamanızı `options.replayStore` aracılığıyla `verifySolution()`'a iletirsiniz.
+
+```ts
+interface ReplayStore {
+  consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+`jti`, challenge'ı benzersiz olarak tanımlayan JWT token kimliğidir. `expiresAt`, token'ın ne zaman süresinin dolacağını belirten saniye cinsinden bir Unix zaman damgasıdır. Gönderime izin vermek için `true` (ilk kullanım), reddetmek için `false` (replay algılandı) döndürün. Uygulamanız atomic olmalıdır — yarış koşullarından kaçınmak için Redis `SET NX EXAT` gibi bir ilkel kullanın.
+
+## `LocalReplayStore`
+
+`ribaunt`'tan dışa aktarılan, yerleşik, sürece özel `ReplayStore` uygulaması. Tüketilen token kimliklerini bellekte saklar ve TTL'leri geçtikten sonra girişleri otomatik olarak çıkarır. `replayPrevention` `'local'` olduğunda bunu kullanın (varsayılan) — bu modda otomatik olarak kullanılır. Ayrıca her işleyici için ayrı bir store'a ihtiyacınız olduğunda doğrudan örnekleyebilirsiniz.
+
+```ts
+class LocalReplayStore implements ReplayStore {
+  async consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+```ts
+import { LocalReplayStore } from 'ribaunt';
+
+const store = new LocalReplayStore();
+
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: store,
+});
+```
+
+`LocalReplayStore`, çoklu süreç veya serverless dağıtımları için uygun değildir. Bu ortamlar için Redis `SET NX EXAT` gibi dağıtık atomic bir store ile desteklenen kendi `ReplayStore`'unuzu uygulayın.
+
+## `ReplayPreventionMode`
+
+`verifySolution()`'ın bir token'ın birden fazla kez gönderilmesini nasıl engelleyeceğini kontrol eder.
+
+```ts
+type ReplayPreventionMode = 'disabled' | 'local' | 'remote';
+```
+
+- **`'local'`** (varsayılan) — replay kontrolleri sürece özeldir. Tek süreçli dağıtımlar için uygundur.
+- **`'remote'`** — replay kontrolleri sizin `ReplayStore`'unuzu kullanır. Serverless veya yatay olarak ölçeklendirilmiş dağıtımlar için bunu kullanın.
+- **`'disabled'`** — replay kontrolü yok. Token'lar süresi dolana kadar yeniden kullanılabilir. Yalnızca başka bir katman replay korumasını yönetiyorsa bunu kullanın.
+
+## `VerifySolutionOptions`
+
+`verifySolution()`'a üçüncü argüman olarak iletilen isteğe bağlı yapılandırma.
+
+```ts
+interface VerifySolutionOptions {
+  replayPrevention?: ReplayPreventionMode; // default: 'local'
+  replayStore?: ReplayStore;               // required when replayPrevention is 'remote'
+  debug?: boolean;                          // default: true in development
+  onWarning?: (warning: VerifyWarning) => void;
+}
+```
+
+## `VerifyWarning`
+
+`verifySolution()` bir sorunla karşılaştığında `onWarning` callback'ine iletilen yapılandırılmış uyarı nesnesi. Konsol çıktısını etkinleştirmeden telemetri yakalamanıza olanak tanır.
+
+```ts
+interface VerifyWarning {
+  reason: VerifyWarningReason;
+  message: string;
+  error?: unknown;
+}
+```
+
+## `VerifyWarningReason`
+
+Doğrulama başarısızlığının kategorisini açıklayan bir dize union'ı. Bunu, uyarıları farklı izleme kanallarına veya metriklere yönlendirmek için kullanabilirsiniz.
+
+```ts
+type VerifyWarningReason =
+  | 'invalid-token'
+  | 'expired-token'
+  | 'invalid-solution'
+  | 'replay-detected'
+  | 'configuration-error';
+```
+
+## `SolveChallengeOptions`
+
+Testler sırasında süresiz çalışmasını önlemek için `solveChallenge()`'a iletilen isteğe bağlı korumalar.
+
+```ts
+interface SolveChallengeOptions {
+  maxIterations?: number; // hard cap on nonce attempts
+  maxDurationMs?: number; // default: 30000 ms
+}
+```
+
+## `WidgetState`
+
+`ribaunt/widget`'tan içe aktarılır. Tarayıcıdaki CAPTCHA widget'ının mevcut durumunu temsil eder.
+
+```ts
+type WidgetState = 'initial' | 'verifying' | 'done' | 'error';
+```
+
+## `RibauntWidgetHandle`
+
+`ribaunt/widget-react`'tan içe aktarılır. Bu, `<RibauntWidget>` bileşenine eklenmiş bir React `ref` aracılığıyla sunulan buyrukçu handle'dır. Widget'ı uygulama kodunuzdan programatik olarak kontrol etmek için kullanın.
+
+```ts
+interface RibauntWidgetHandle {
+  reset(): void;
+  getState(): WidgetState | undefined;
+  startVerification(): void;
+}
+```

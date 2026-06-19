@@ -1,0 +1,99 @@
+---
+title: "Olaylar"
+sidebarTitle: "Olaylar"
+description: "ribaunt-widget tarafından yayılan tüm olaylar için başvuru: verify, error ve state-change. React callback prop karşılıklarını ve olay detayı türlerini içerir."
+---
+
+`<ribaunt-widget>`, öğe üzerinde `addEventListener` ile dinleyebileceğiniz üç DOM özel olayı yayar — `verify`, `error` ve `state-change`. React'te `addEventListener` yerine tür eklenmiş callback prop'larını kullanın; sarmalayıcı, dinleyicileri sizin için otomatik olarak ekler ve kaldırır.
+
+## `verify`
+
+`verify` olayı, widget tüm challenge'ları başarıyla çözdüğünde ve bir `verify-endpoint` sağladıysanız sunucu çözümlerin geçerli olduğunu onayladığında gönderilir. Hiç `verify-endpoint` ayarlı değilse, olay yerel proof-of-work tamamlanır tamamlanmaz tetiklenir.
+
+**Olay türü:** `CustomEvent<{ solutions: ChallengeSolution[] }>`
+
+Burada `ChallengeSolution = { nonce: string; hash: string }`.
+
+```js
+widget.addEventListener('verify', (e) => {
+  const { solutions } = e.detail;
+  console.log('Verified! Solutions:', solutions);
+  // Enable submit button, proceed with form, etc.
+});
+```
+
+**React karşılığı:** `onVerify={(detail) => ...}`
+
+## `error`
+
+`error` olayı, widget herhangi bir aşamada bir hatayla karşılaştığında — challenge endpoint'inizden token getirme, proof-of-work çözücüsünü çalıştırma veya verify endpoint'inizden OK olmayan bir yanıt alma — gönderilir.
+
+**Olay türü:** `CustomEvent<{ error: string; timeout?: boolean }>`
+
+```js
+widget.addEventListener('error', (e) => {
+  const { error, timeout } = e.detail;
+  if (timeout) {
+    console.warn('Timed out:', error);
+  } else {
+    console.error('CAPTCHA failed:', error);
+  }
+});
+```
+
+**React karşılığı:** `onError={(detail) => ...}`
+
+<Note>
+  `timeout` alanı, yalnızca `solve-timeout` yapılandırılmışsa ve çözüm süresi bu sınırı aştığında olay detayında bulunur. Bulunduğunda her zaman `true` değerindedir.
+</Note>
+
+## `state-change`
+
+`state-change` olayı, widget her iç durumlar arasında geçiş yaptığında gönderilir. Bunu, widget'ın görsel durumunu kendi UI'nizde yansıtmak için kullanabilirsiniz — örneğin, doğrulama devam ederken bir gönder düğmesini devre dışı bırakmak için.
+
+**Olay türü:** `CustomEvent<{ state: 'initial' | 'verifying' | 'done' | 'error' }>`
+
+```js
+widget.addEventListener('state-change', (e) => {
+  const { state } = e.detail;
+  // 'initial' | 'verifying' | 'done' | 'error'
+});
+```
+
+**React karşılığı:** `onStateChange={(detail) => ...}`
+
+## React callback prop'ları
+
+React sarmalayıcısını kullandığınızda, tüm callback'leri doğrudan prop olarak iletebilirsiniz. Sarmalayıcı, yeniden render'lar arasında kararlı olay dinleyici referanslarını korur; böylece callback'leriniz her zaman en güncel closure değerlerini alır:
+
+```tsx
+<RibauntWidget
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+  onVerify={(detail) => console.log('Solutions:', detail.solutions)}
+  onError={(detail) => console.error('Error:', detail.error)}
+  onStateChange={(detail) => console.log('State:', detail.state)}
+  onReady={(detail) => console.log('Ready with state:', detail.state)}
+  onLoad={(detail) => console.log('Widget loaded:', detail.state)}
+  onEvent={(type, detail) => console.log('Event:', type, detail)}
+/>
+```
+
+## Yalnızca React'e özgü olaylar
+
+React sarmalayıcısında, web bileşeninde karşılığı olan herhangi bir DOM özel olayı bulunmayan iki ek callback mevcuttur:
+
+- **`onReady`** — widget bağlandıktan sonra bir kez tetiklenir; detay payload'unda widget'ın başlangıç durumunu içerir. Widget'ın etkileşime hazır olduğunu bilmek için bunu kullanın.
+- **`onLoad`** — `onReady` ile işlevsel olarak aynıdır. Daha önceki bir sürümde `onLoad` kullanıyorsanız geriye dönük uyumluluk için takma ad olarak sağlanmıştır.
+- **`onEvent`** — her olay türü için (`'verify'`, `'error'`, `'state-change'` ve `'ready'`) olayın detay nesnesiyle birlikte tetiklenen kapsayıcı işleyici. Tüm widget olaylarını işlemek veya günlüğe kaydetmek için tek bir yer istiyorsanız bunu kullanın.
+
+## Widget durumları
+
+Widget, yaşam döngüsü boyunca tanımlı bir dizi durum arasında ilerler. Bu durum dizelerine `state-change` olaylarında ve `getState()`'in dönüş değerinde rastlayacaksınız:
+
+| Durum | Açıklama |
+| --- | --- |
+| `initial` | Widget yüklendi, kullanıcı tıklamasını veya otomatik doğrulamayı bekliyor |
+| `verifying` | Çözücü çalışıyor (proof-of-work devam ediyor) |
+| `done` | Challenge başarıyla çözüldü ve doğrulandı |
+| `error` | Getirme, çözme veya doğrulama sırasında bir hata oluştu |

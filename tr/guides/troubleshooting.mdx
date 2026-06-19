@@ -1,0 +1,143 @@
+---
+title: "Sorun giderme"
+sidebarTitle: "Sorun giderme"
+description: "Yaygın Ribaunt CAPTCHA sorunlarını teşhis edin ve düzeltin: RIBAUNT_SECRET hataları, Web Crypto başarısızlıkları, süresi dolmuş token'lar, replay algılama ve widget yükleme."
+---
+
+Bu kılavuz, Ribaunt'u entegre ederken karşılaşabileceğiniz en yaygın sorunları ve bunları nasıl çözeceğinizi kapsar. Her sorun için olası nedeni ve uygulayacağınız tam düzeltmeyi bulacaksınız.
+
+<AccordionGroup>
+  <Accordion title='Hata: "RIBAUNT_SECRET environment variable is not set!"'>
+    **Neden:** `RIBAUNT_SECRET`, ortamınızda eksik veya `createChallenge` ya da `verifySolution`'a yapılan ilk çağrıdan önce sürece yüklenmemiş.
+
+    **Düzeltme:** Sunucunuz ilk isteğini işlemeden önce değişkenin tanımlandığından emin olun. Bir `.env` dosyası kullanıyorsanız, onu giriş noktanızın en üstünde `dotenv` gibi bir araçla yükleyin:
+
+    ```ts
+    import 'dotenv/config'; // Must come before any ribaunt imports
+    import { createChallenge } from 'ribaunt';
+    ```
+
+    Barındırılan çalışma zamanları için (Vercel, Railway, Fly.io, vb.), `RIBAUNT_SECRET`'i kaynak kontrolüne işlemek yerine platformunuzun ortam değişkeni panosu aracılığıyla ayarlayın. Yanlışlıkla açığa çıktıysa secret'ı hemen rotate edin.
+  </Accordion>
+
+  <Accordion title='Widget hatası: "Web Crypto API is unavailable. Use HTTPS or localhost."'>
+    **Neden:** Tarayıcı çözücüsü bir [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) gerektirir. `localhost` dışındaki herhangi bir host üzerinde düz HTTP buna uygun değildir. Bu durum genellikle `http://192.168.x.x` gibi bir IP adresi üzerinden erişilen yerel ağdaki cihazları etkiler.
+
+    **Düzeltme:**
+
+    - **Üretim:** her zaman uygulamanızı HTTPS üzerinden sunun.
+    - **Geliştirme:** makinenizin LAN IP'si yerine `http://localhost` kullanın. Ağdaki diğer cihazların dev sunucunuza ulaşmasına ihtiyacınız varsa, [mkcert](https://github.com/FiloSottile/mkcert) veya yerel bir reverse proxy gibi bir araçla TLS sonlandırın.
+  </Accordion>
+
+  <Accordion title='verifySolution false döndürüyor — sebep: "expired-token"'>
+    **Neden:** Challenge token'ın TTL'i, tarayıcı çözümünü göndermeden önce geçti. Bu, yüklenmesi uzun süren sayfalarda, kullanıcıların göndermeden önce dakikalarca süre harcadığı formlarda veya sunucu ile istemci saatleri önemli ölçüde sapmışsa olabilir.
+
+    **Düzeltme:** Kullanıcılara daha fazla zaman vermek için `createChallenge` çağrınızdaki `ttlSeconds`'i artırın. Varsayılan 30 saniyedir; karmaşık sayfalar veya formlar için 120–300 değerlerini değerlendirin:
+
+    ```ts
+    // Allow up to 5 minutes to complete the form
+    const tokens = createChallenge(5, 4, 300);
+    ```
+  </Accordion>
+
+  <Accordion title='verifySolution false döndürüyor — sebep: "replay-detected"'>
+    **Neden:** Aynı challenge token'ları birden fazla kez gönderildi. Bu kasıtlıdır — Ribaunt'un varsayılan `local` replay store'u token'ları ilk kullanımda tüketilmiş olarak işaretler ve sonraki gönderimleri reddeder.
+
+    **Düzeltme:** Bu normal kullanıcı akışlarında oluyorsa, büyük olasılıkla ön yüzünüzün aynı token'ları yeniden gönderdiği anlamına gelir (örneğin form yeniden denemesinde). Yeniden göndermeden önce challenge endpoint'inizi tekrar çağırarak her deneme için yeni token'lar oluşturun.
+
+    Bunu **serverless veya çoklu örnek dağıtımlarında** görüyorsanız sorun, her fonksiyon çağrısının kendi bellek içi store'una sahip olmasıdır. Bir örnekte tüketilen token'lar diğerleri için görünmezdir. Dağıtık bir store ile `replayPrevention: 'remote'` ifadesine geçin:
+
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          // Use Redis/Valkey SET NX EX for atomic consume semantics
+          const result = await redisClient.set(jti, '1', { NX: true, EXAT: expiresAt });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Widget otomatik olarak doğrulamaya başlamıyor">
+    **Neden:** `auto-verify` özniteliği yok ya da widget `disabled` durumdadır; bu da ayarlandığında bile `auto-verify`'ın tetiklenmesini engeller.
+
+    **Düzeltme:** HTML öğesine `auto-verify="true"` ekleyin veya React sarmalayıcısında `autoVerify={true}` ekleyin:
+
+    ```html
+    <ribaunt-widget
+      challenge-endpoint="/api/challenge"
+      verify-endpoint="/api/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+    ```
+
+    Ayrıca `disabled`'ın ya yok olduğunu ya da açıkça `"false"` olarak ayarlandığını kontrol edin. Widget devre dışıyken `auto-verify` tetiklenmez.
+  </Accordion>
+
+  <Accordion title="Widget görünmüyor veya yüklenirken JS hatası alıyor">
+    **Neden:** Widget script'i doğru şekilde yüklenmiyor. Yaygın nedenler arasında derlenmiş dosyaya yanlış bir yol, script'in `type="module"` olmadan yüklenmesi veya paket'in browser export'unu doğru çözümlemeyen bir bundler bulunur.
+
+    **Düzeltme:** Widget script'ini bir modül olarak yükleyin ve yolun `dist/widget-browser.js`'ye işaret ettiğini doğrulayın:
+
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+    ```
+
+    Widget'ı kendiniz bundle ediyorsanız, bundler'ınızın Ribaunt paketinden `browser` export koşulunu çözümlediğinden emin olun. Widget tree-shake edilmişse veya bulunamıyorsa, export koşullarını nasıl yapılandıracağınızı çerçevenizin belgelerinden kontrol edin.
+  </Accordion>
+
+  <Accordion title="verifySolution serverless veya edge dağıtımlarında her zaman false döndürüyor">
+    **Neden:** Varsayılan `local` replay store, süreç belleğinde yaşar. Serverless ortamlarda her fonksiyon çağrısı yeni bir süreçtir; bu nedenle önceki bir çağrıda tüketilen token'lar bir sonrakine bilinmez. Bu, bellek içi store'un her gönderimi ilk gönderim gibi ele almasına neden olur — ancak iki eşzamanlı çağrı yarışırsa, her ikisi de aynı token'ı tüketebilir veya hiçbiri replay'e karşı korumak için yeterince uzun süre durum tutamaz.
+
+    **Düzeltme:** Atomic `SET NX EX` semantiği kullanan bir Redis veya Valkey adaptörüyle `replayPrevention: 'remote'` ifadesine geçin:
+
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          const result = await redis.set(`ribaunt:${jti}`, '1', {
+            NX: true,
+            EXAT: expiresAt,
+          });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="React sarmalayıcısı Next.js'te SSR hatası fırlatıyor">
+    **Neden:** `<ribaunt-widget>` web bileşeni, kendisini `customElements` ve `window` gibi yalnızca tarayıcıda bulunan API'leri kullanarak kaydeder. Bunlar sunucu tarafı render sırasında mevcut değildir.
+
+    **Düzeltme:** `RibauntWidget`'ı içe aktaran veya render eden herhangi bir bileşen dosyasının en üstüne `'use client'` ekleyin:
+
+    ```ts
+    'use client';
+    
+    import { RibauntWidget } from 'ribaunt/widget-react';
+    ```
+
+    Bileşeni `next/dynamic` ile sarmalayın — Ribaunt React sarmalayıcısı tarayıcı bundle'ının dinamik içe aktarımını zaten dahili olarak yönetir. İkinci bir dinamik içe aktarım katmanı eklemek bu mekanizmaya müdahale edebilir ve çift yüklenmeye veya hidrasyon uyumsuzluklarına neden olabilir.
+  </Accordion>
+</AccordionGroup>
+
+## Hata ayıklama günlüklemesini etkinleştirme
+
+Varsayılan olarak Ribaunt, `NODE_ENV` `development` olarak ayarlandığında doğrulama uyarılarını konsola günlükler. Diğer ortamlarda, açıkça etkinleştirmediğiniz sürece uyarılar sessizdir. Konsol çıktısını açıkça etkinleştirmek için `debug` seçeneğini kullanın veya herhangi bir ortamda çalışan yapılandırılmış günlükleme için `onWarning`'i kullanın.
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  debug: true, // Logs warnings to console in development
+  onWarning: (w) => console.log(w.reason, w.message),
+});
+```
+
+`NODE_ENV=development`'da, `debug` varsayılan olarak etkindir — yerel geliştirme sırasında bunu açıkça iletmenize gerek yoktur. Üretimde, uygulama günlüklerini düşük sinyalli gürültüyle doldurmamak için `debug: true` yerine `onWarning`'e güvenin.
+
+<Tip>
+  Üretimde `onWarning` callback'ini kullanarak yapılandırılmış uyarı nedenlerini (`invalid-token`, `expired-token`, `replay-detected`, vb.) günlükleri doldurmadan izleme için yakalayın. Uyarı olaylarını gözlemlenebilirlik platformunuza (Datadog, Sentry, vb.) yönlendirerek, ayrıntılı konsol çıktısı etkinleştirmeden olağandışı düzenler hakkında görünürlük elde edin.
+</Tip>

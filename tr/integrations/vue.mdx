@@ -1,0 +1,105 @@
+---
+title: "Vue"
+sidebarTitle: "Vue"
+description: "Ribaunt CAPTCHA web bileşenini Vue 3 Vite projesine ekleyin. Vue'yu özel öğeyi tanıyacak şekilde yapılandırın ve şablonlarda olayları reaktif olarak bağlayın."
+---
+
+Vue 3, Web Bileşenlerini doğal olarak desteklediği için Ribaunt eklemek oldukça basittir. Vite yapılandırmanızda `ribaunt-widget` öğesini özel bir öğe olarak kaydedin, bileşeninizin içinde widget'ı bir yan etki olarak içe aktarın ve şablonunuzda Vue'nun standart `:` özellik bağlama ve `@` olay dinleyici söz dizimi ile doğrudan kullanın.
+
+<Note>
+  Widget, Web Crypto API'sine dayanır ve bu nedenle **güvenli bir bağlam** gerektirir. Üretimde `https://`, yerel geliştirme sırasında ise `http://localhost` kullanın. Düz yerel ağ HTTP URL'leri bazı tarayıcılarda başarısız olabilir.
+</Note>
+
+## Vite yapılandırması
+
+Vue'nun şablon derleyicisine `ribaunt-` ile başlayan herhangi bir etiketi özel bir öğe olarak ele almasını söyleyin. Bu adım olmadan Vue çalışma zamanında "Bilinmeyen özel öğe" uyarıları yayar.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag.startsWith('ribaunt-')
+        }
+      }
+    })
+  ]
+})
+```
+
+## Widget'ı bir bileşende kullanma
+
+Özel öğeyi kaydetmek için `ribaunt/widget` modülünü bir yan etki olarak içe aktarın, ardından `<template>` içinde doğrudan `<ribaunt-widget>` öğesini kullanın. Reaktif verileri `:` ile bağlayın ve olay işleyicilerini `@` ile ekleyin.
+
+```vue
+<template>
+  <form @submit.prevent="submitForm">
+    <ribaunt-widget
+      ref="widgetRef"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      :show-warning="showWarning"
+      :solve-timeout="15000"
+      :disabled="isDisabled"
+      @verify="onVerify"
+      @error="onError"
+      @state-change="onStateChange"
+    ></ribaunt-widget>
+
+    <button type="submit" :disabled="!isVerified">Submit Form</button>
+    <button type="button" @click="resetCaptcha">Reset</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import type { RibauntWidgetElement, WidgetState } from 'ribaunt/widget'
+
+// Side-effect import — registers the <ribaunt-widget> custom element
+import 'ribaunt/widget'
+
+const widgetRef  = ref<RibauntWidgetElement | null>(null)
+const isVerified = ref(false)
+const showWarning = ref(false)
+const isDisabled  = ref(false)
+
+const onVerify = (event: CustomEvent<{ solutions: any[] }>) => {
+  console.log('Verified!', event.detail.solutions)
+  isVerified.value = true
+}
+
+const onError = (event: CustomEvent<{ error: string }>) => {
+  console.error('Error verifying:', event.detail.error)
+  isVerified.value = false
+}
+
+const onStateChange = (event: CustomEvent<{ state: WidgetState }>) => {
+  console.log('State changed to:', event.detail.state)
+}
+
+const resetCaptcha = () => {
+  widgetRef.value?.reset()
+  isVerified.value = false
+}
+
+const submitForm = () => {
+  if (isVerified.value) {
+    console.log('Form submitted securely!')
+  }
+}
+</script>
+```
+
+<Info>
+  Önerilen challenge uç nokta yanıt biçimi `{ challenges: string[] }` şeklindedir. Geriye dönük uyumluluk için widget ayrıca `{ tokens: string[] }` ve ham bir `string[]` değerini de kabul eder.
+</Info>
+
+<Note>
+  `:disabled="isDisabled"` bağlamasını yaptığınızda, widget `disabled` durumunu tam bir etkileşim kilidi olarak ele alır. Tıklamalar, klavye etkinleştirmeleri, `startVerification()` ve `auto-verify` prop'u temizleyene kadar tamamen engellenir. Widget'ın çalışmasını beklemeden önce `isDisabled.value = false` ayarlayın.
+</Note>

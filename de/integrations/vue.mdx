@@ -1,0 +1,105 @@
+---
+title: "Vue"
+sidebarTitle: "Vue"
+description: "Fügen Sie die Ribaunt-CAPTCHA-Web-Komponente zu einem Vue-3-Vite-Projekt hinzu. Konfigurieren Sie Vue, um das benutzerdefinierte Element zu erkennen, und binden Sie Events reaktiv in Templates ein."
+---
+
+Vue 3 unterstützt Web Components nativ, was das Hinzufügen von Ribaunt unkompliziert macht. Registrieren Sie `ribaunt-widget` als benutzerdefiniertes Element in Ihrer Vite-Konfiguration, importieren Sie das Widget als Side Effect in Ihrer Komponente und verwenden Sie es direkt in Ihrem Template mit der Standardsyntax von Vue: `:` für Property-Bindings und `@` für Event-Listener.
+
+<Note>
+  Das Widget basiert auf der Web Crypto API und erfordert daher einen **sicheren Kontext**. Verwenden Sie `https://` in der Produktion und `http://localhost` während der lokalen Entwicklung. Reine lokale Netzwerk-HTTP-URLs können in einigen Browsern fehlschlagen.
+</Note>
+
+## Vite-Konfiguration
+
+Weisen Sie den Template-Compiler von Vue an, jedes Tag, das mit `ribaunt-` beginnt, als benutzerdefiniertes Element zu behandeln. Ohne diesen Schritt gibt Vue zur Laufzeit „Unknown custom element"-Warnungen aus.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag.startsWith('ribaunt-')
+        }
+      }
+    })
+  ]
+})
+```
+
+## Verwendung des Widgets in einer Komponente
+
+Importieren Sie `ribaunt/widget` als Side Effect, um das benutzerdefinierte Element zu registrieren, und verwenden Sie dann `<ribaunt-widget>` direkt in Ihrem `<template>`. Binden Sie reaktive Daten mit `:` und Event-Handler mit `@`.
+
+```vue
+<template>
+  <form @submit.prevent="submitForm">
+    <ribaunt-widget
+      ref="widgetRef"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      :show-warning="showWarning"
+      :solve-timeout="15000"
+      :disabled="isDisabled"
+      @verify="onVerify"
+      @error="onError"
+      @state-change="onStateChange"
+    ></ribaunt-widget>
+
+    <button type="submit" :disabled="!isVerified">Submit Form</button>
+    <button type="button" @click="resetCaptcha">Reset</button>
+  </form>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import type { RibauntWidgetElement, WidgetState } from 'ribaunt/widget'
+
+// Side-effect import — registers the <ribaunt-widget> custom element
+import 'ribaunt/widget'
+
+const widgetRef  = ref<RibauntWidgetElement | null>(null)
+const isVerified = ref(false)
+const showWarning = ref(false)
+const isDisabled  = ref(false)
+
+const onVerify = (event: CustomEvent<{ solutions: any[] }>) => {
+  console.log('Verified!', event.detail.solutions)
+  isVerified.value = true
+}
+
+const onError = (event: CustomEvent<{ error: string }>) => {
+  console.error('Error verifying:', event.detail.error)
+  isVerified.value = false
+}
+
+const onStateChange = (event: CustomEvent<{ state: WidgetState }>) => {
+  console.log('State changed to:', event.detail.state)
+}
+
+const resetCaptcha = () => {
+  widgetRef.value?.reset()
+  isVerified.value = false
+}
+
+const submitForm = () => {
+  if (isVerified.value) {
+    console.log('Form submitted securely!')
+  }
+}
+</script>
+```
+
+<Info>
+  Die empfohlene Antwortform für den Challenge-Endpunkt ist `{ challenges: string[] }`. Aus Gründen der Abwärtskompatibilität akzeptiert das Widget auch `{ tokens: string[] }` und ein rohes `string[]`.
+</Info>
+
+<Note>
+  Wenn Sie `:disabled="isDisabled"` binden, behandelt das Widget den `disabled`-Zustand als vollständige Interaktionssperre. Klicks, Tastaturaktivierung, `startVerification()` und `auto-verify` werden alle blockiert, bis Sie die Prop zurücksetzen. Setzen Sie `isDisabled.value = false`, bevor Sie erwarten, dass das Widget läuft.
+</Note>

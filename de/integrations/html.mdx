@@ -1,0 +1,102 @@
+---
+title: "Vanilla JS"
+sidebarTitle: "HTML / Vanilla JS"
+description: "Betten Sie die Ribaunt-CAPTCHA-Web-Komponente in jede HTML-Seite ohne Framework ein. Hören Sie auf Verify- und Error-Events, um die Formularübermittlung zu steuern."
+---
+
+`<ribaunt-widget>` ist eine standardmäßige Web Component, die ohne Framework in jedem modernen Browser funktioniert. Sie laden ein einzelnes ES-Modul-Skript, setzen das Element in Ihr Markup und verbinden ein paar Event Listener – kein Build-Schritt erforderlich.
+
+<Note>
+  Das Widget basiert auf der Web Crypto API, die nur in einem **sicheren Kontext** verfügbar ist. Verwenden Sie `https://` in der Produktion und `http://localhost` während der lokalen Entwicklung. Reine lokale Netzwerk-URLs wie `http://192.168.x.x` funktionieren nicht.
+</Note>
+
+## Vollständiges Beispiel
+
+Der folgende Ausschnitt führt alle vier Schritte in einer einzigen, in sich geschlossenen HTML-Seite zusammen.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Secure Form</title>
+  <!-- Adjust the path to match your static file hosting -->
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+</head>
+<body>
+  <form id="secure-form" action="/api/submit" method="POST">
+    <h2>Please verify you are human</h2>
+
+    <ribaunt-widget
+      id="captcha"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      solve-timeout="15000"
+    ></ribaunt-widget>
+
+    <!-- Keep disabled until the verify event fires -->
+    <button type="submit" id="submit-btn" disabled>Submit</button>
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const widget    = document.getElementById('captcha');
+      const submitBtn = document.getElementById('submit-btn');
+
+      widget.addEventListener('verify', (e) => {
+        console.log('User verified!', e.detail.solutions);
+        submitBtn.disabled = false;
+      });
+
+      widget.addEventListener('error', (e) => {
+        console.error('CAPTCHA failed:', e.detail.error);
+        if (e.detail.timeout) {
+          console.warn('Solving timed out — try again.');
+        }
+        submitBtn.disabled = true;
+      });
+
+      // Optional: react to intermediate state transitions
+      widget.addEventListener('state-change', (e) => {
+        console.log('Widget state:', e.detail.state);
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+## Widget gestalten
+
+Die Interna des Widgets sind in einem Shadow DOM gekapselt, sodass standardmäßige Nachfahren-Selektoren sie nicht erreichen können. Sie können jedoch CSS Custom Properties überschreiben, die auf das Host-Element bezogen sind.
+
+```css
+#captcha {
+  /* Override widget theme variables */
+  --ribaunt-background: #f0f0f0;
+  --ribaunt-border-color: #ccc;
+
+  /* Standard CSS applies to the host element itself */
+  margin: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+## Attribut-Referenz
+
+Die am häufigsten verwendeten Attribute sind unten aufgeführt. Die vollständige Liste der Attribute, akzeptierten Werte und Standardwerte finden Sie unter [Widget-Konfiguration](/de/widget/configuration).
+
+| Attribut | Beschreibung |
+| --- | --- |
+| `challenge-endpoint` | URL, von der das Widget Challenges abruft. |
+| `verify-endpoint` | URL, an die das Widget Lösungen sendet. |
+| `auto-verify` | Wenn vorhanden, beginnt das Widget unmittelbar nach dem Laden mit dem Lösen, ohne dass ein Klick erforderlich ist. |
+| `show-warning` | Wenn vorhanden, wird ein Warnbanner über dem Widget angezeigt. |
+| `warning-message` | Benutzerdefinierter Text für das Warnbanner, das angezeigt wird, wenn `show-warning` gesetzt ist. |
+| `solve-timeout` | Maximale Millisekunden, die zum Lösen erlaubt sind, bevor ein `error`-Event ausgelöst wird. Weglassen, um das Timeout zu deaktivieren. |
+| `disabled` | Blockiert jede Benutzerinteraktion **und** programmatische `startVerification()`-Aufrufe. |
+
+<Note>
+  Ein `disabled`-Widget startet die Verifizierung auch nicht über `auto-verify`. Entfernen Sie das Attribut `disabled`, bevor Sie erwarten, dass das Widget läuft.
+</Note>

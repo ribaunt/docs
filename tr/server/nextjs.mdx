@@ -1,0 +1,151 @@
+---
+title: "Next.js"
+sidebarTitle: "Next.js API"
+description: "Next.js App Router ve Pages Router için Ribaunt CAPTCHA challenge ve verify işleyicileri oluşturun; ortam kurulumu ve replay koruması ipuçlarını öğrenin."
+---
+
+Bu rehber, bir Next.js uygulamasına iki Ribaunt CAPTCHA API rotasını eklemenin yolunu gösterir — biri challenge yayınlamak, diğeri çözümleri doğrulamak için. Hem App Router (`app/` dizini, Next.js 13\+) hem de Pages Router (`pages/api/`, Next.js 12 ve altı) aşağıda kapsanmaktadır.
+
+<Warning>
+  `RIBAUNT_SECRET` değerinin önüne asla `NEXT_PUBLIC_` getirmeyin. Bu şekilde önek alan değişkenler derleme sırasında istemciye paketlenir ve her tarayıcıya ifşa edilir. Bu değeri yalnızca sunucuda tutun.
+</Warning>
+
+## Ortam kurulumu
+
+Gizli anahtarınızı `.env.local` dosyasına ekleyin. Next.js bu dosyayı otomatik olarak yükler ve değerlerini yalnızca sunucu tarafında tutar:
+
+```env
+# .env.local — server-side only
+RIBAUNT_SECRET="your_very_strong_random_secret_string"
+```
+
+## App Router (Next.js 13\+)
+
+<Tip>
+  Bu dosyaları `app/api/captcha/challenge/route.ts` ve `app/api/captcha/verify/route.ts` konumlarına yerleştirin.
+</Tip>
+
+Aşağıda gösterilen iki rota işleyici dosyasını oluşturun. Her dosya, App Router kuralı gereği, isimli bir HTTP metodu fonksiyonu (`GET` veya `POST`) dışa aktarır.
+
+<Tabs>
+  <Tab title="challenge/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { createChallenge } from 'ribaunt';
+    
+    export async function GET() {
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        return NextResponse.json({ challenges });
+      } catch (error) {
+        return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
+      }
+    }
+    ```
+
+    `createChallenge(5, 4, 60)`, zorluk seviyesi 5'te, her biri 60 saniye geçerli 4 imzalı challenge token'ı üretir. Fonksiyon bir JWT dizesi dizisi döndürür; bunu `{ challenges }` ile sarmalamak, Ribaunt widget'ının beklediği yanıt sözleşmesiyle eşleşir.
+  </Tab>
+  <Tab title="verify/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { verifySolution } from 'ribaunt';
+    
+    export async function POST(req: Request) {
+      const { tokens, solutions } = await req.json();
+    
+      if (!tokens || !solutions) {
+        return NextResponse.json(
+          { success: false, error: 'Missing tokens or solutions' },
+          { status: 400 }
+        );
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => console.log('captcha warning', warning.reason),
+      });
+    
+      if (isValid) {
+        return NextResponse.json({ success: true });
+      }
+      return NextResponse.json(
+        { success: false, error: 'Invalid CAPTCHA solution' },
+        { status: 400 }
+      );
+    }
+    ```
+
+    `verifySolution` JWT imzasını doğrular, her hash'in gerekli zorluğu sağladığını kontrol eder, süresi dolmuş token'ları reddeder ve (varsayılan olarak) mevcut süreç içinde token yeniden oynatmayı engeller. Bir `Promise<boolean>` döndürür.
+  </Tab>
+</Tabs>
+
+## Pages Router (Next.js 12 ve altı)
+
+`pages/api/` dizinini kullanıyorsanız aşağıdaki iki işleyici dosyasını oluşturun. Her biri `NextApiRequest` ve `NextApiResponse` alan bir varsayılan asenkron fonksiyon dışa aktarır.
+
+<Tabs>
+  <Tab title="pages/api/captcha/challenge.ts">
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { createChallenge } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        res.status(200).json({ challenges });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to generate challenge' });
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="pages/api/captcha/verify.ts">
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { verifySolution } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      const { tokens, solutions } = req.body;
+    
+      if (!tokens || !solutions) {
+        return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => {
+          console.log('captcha warning', warning.reason, warning.message);
+        },
+      });
+    
+      if (isValid) {
+        return res.status(200).json({ success: true });
+      }
+      return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Sunucusuz ve edge dağıtımları
+
+<Note>
+  Varsayılan `replayPrevention: 'local'` modu kullanılan token kimliklerini süreç içi bir `Map` içinde saklar. Uygulamanız sunucusuz fonksiyonlar olarak veya birden fazla örnek arasında çalıştığında, her soğuk başlatma boş bir depoyla başlar, bu nedenle bir örneğe karşı çözülen bir token başka bir örneğe karşı yeniden oynatılabilir.
+
+  Örnekler arası yeniden oynatmaları önlemek için `replayPrevention: 'remote'` ile birlikte atomik dağıtık bir depo (örneğin `SET NX` işlemiyle Redis) destekli bir `replayStore` adaptörü iletin:
+
+  ```ts
+  const isValid = await verifySolution(tokens, solutions, {
+    replayPrevention: 'remote',
+    replayStore: myRedisReplayStore,
+  });
+  ```
+
+  `replayStore`, belirli bir `jti` ilk kez görüldüğünde atomik olarak `true`, sonraki her çağrıda `false` döndüren bir `consume(jti: string, expiresAt: number): Promise<boolean>` metodu uygulamalıdır.
+</Note>
