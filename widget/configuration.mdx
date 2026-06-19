@@ -28,11 +28,11 @@ The snippet below shows every available attribute set on the HTML element:
 | --- | --- | --- | --- | --- |
 | `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | URL endpoint that returns `{ challenges: string[] }`. If undefined, the widget cannot auto-fetch. |
 | `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | URL endpoint to POST the solutions. If undefined, you must handle verification manually using the solver directly. |
-| `auto-verify` | `autoVerify` | `boolean | string` | `false` | Starts verification automatically once the widget loads. Set to `"false"` or omit it to require user interaction or `startVerification()`. |
-| `show-warning` | `showWarning` | `boolean | string` | `false` | Shows a red warning banner above the widget. Often used to alert users if WebAssembly is missing for future fast-solvers. |
+| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Starts verification automatically once the widget loads. Set to `"false"` or omit it to require user interaction or `startVerification()`. |
+| `show-warning` | `showWarning` | `boolean \| string` | `false` | Shows a red warning banner above the widget. Often used to alert users if WebAssembly is missing for future fast-solvers. |
 | `warning-message` | `warningMessage` | `string` | `"Enable WASM..."` | Custom message text for the warning banner. |
-| `solve-timeout` | `solveTimeout` | `number | string` | `undefined` | Optional timeout in milliseconds for solving. If omitted, solving is not automatically timed out. |
-| `disabled` | `disabled` | `boolean | string` | `false` | Disables user interaction and programmatic verification while set. |
+| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optional timeout in milliseconds for solving. If omitted, solving is not automatically timed out. |
+| `disabled` | `disabled` | `boolean \| string` | `false` | Disables user interaction and programmatic verification while set. |
 
 ## Challenge endpoint response format
 
