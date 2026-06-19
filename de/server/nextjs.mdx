@@ -1,0 +1,151 @@
+---
+title: "Next.js"
+sidebarTitle: "Next.js API"
+description: "Erstelle Ribaunt-CAPTCHA-Handler für Challenge und Verifizierung im Next.js App Router und Pages Router, mit Umgebungseinrichtung und Tipps zum Wiederholungsschutz."
+---
+
+Diese Anleitung zeigt dir, wie du die beiden Ribaunt-CAPTCHA-API-Routen in eine Next.js-Anwendung einbindest – eine zum Ausstellen von Challenges und eine zum Verifizieren von Lösungen. Sowohl der App Router (Verzeichnis `app/`, Next.js 13\+) als auch der Pages Router (`pages/api/`, Next.js 12 und älter) werden unten abgedeckt.
+
+<Warning>
+  Präfixiere `RIBAUNT_SECRET` niemals mit `NEXT_PUBLIC_`. Variablen mit diesem Präfix werden zur Build-Zeit in den Client gebündelt und jedem Browser offengelegt. Halte diesen Wert ausschließlich serverseitig.
+</Warning>
+
+## Einrichtung der Umgebung
+
+Füge dein Secret zu `.env.local` hinzu. Next.js lädt diese Datei automatisch und hält ihre Werte ausschließlich serverseitig:
+
+```env
+# .env.local — server-side only
+RIBAUNT_SECRET="your_very_strong_random_secret_string"
+```
+
+## App Router (Next.js 13\+)
+
+<Tip>
+  Platziere diese Dateien unter `app/api/captcha/challenge/route.ts` und `app/api/captcha/verify/route.ts`.
+</Tip>
+
+Erstelle die beiden unten gezeigten Route-Handler-Dateien. Jede Datei exportiert eine benannte HTTP-Methoden-Funktion (`GET` oder `POST`) – die Konvention des App Routers.
+
+<Tabs>
+  <Tab title="challenge/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { createChallenge } from 'ribaunt';
+    
+    export async function GET() {
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        return NextResponse.json({ challenges });
+      } catch (error) {
+        return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
+      }
+    }
+    ```
+
+    `createChallenge(5, 4, 60)` erzeugt 4 signierte Challenge-Tokens mit Schwierigkeit 5, jeweils 60 Sekunden gültig. Die Funktion gibt ein Array von JWT-Strings zurück; das Einpacken in `{ challenges }` entspricht dem Antwortvertrag, den das Ribaunt-Widget erwartet.
+  </Tab>
+  <Tab title="verify/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { verifySolution } from 'ribaunt';
+    
+    export async function POST(req: Request) {
+      const { tokens, solutions } = await req.json();
+    
+      if (!tokens || !solutions) {
+        return NextResponse.json(
+          { success: false, error: 'Missing tokens or solutions' },
+          { status: 400 }
+        );
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => console.log('captcha warning', warning.reason),
+      });
+    
+      if (isValid) {
+        return NextResponse.json({ success: true });
+      }
+      return NextResponse.json(
+        { success: false, error: 'Invalid CAPTCHA solution' },
+        { status: 400 }
+      );
+    }
+    ```
+
+    `verifySolution` validiert die JWT-Signatur, prüft, dass jeder Hash die erforderliche Schwierigkeit erfüllt, lehnt abgelaufene Tokens ab und blockiert (standardmäßig) das Wiederholen von Tokens innerhalb des aktuellen Prozesses. Es gibt ein `Promise<boolean>` zurück.
+  </Tab>
+</Tabs>
+
+## Pages Router (Next.js 12 und älter)
+
+Wenn du das Verzeichnis `pages/api/` verwendest, erstelle die beiden Handler-Dateien unten. Jede exportiert standardmäßig eine asynchrone Funktion, die `NextApiRequest` und `NextApiResponse` erhält.
+
+<Tabs>
+  <Tab title="pages/api/captcha/challenge.ts">
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { createChallenge } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        res.status(200).json({ challenges });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to generate challenge' });
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="pages/api/captcha/verify.ts">
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { verifySolution } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      const { tokens, solutions } = req.body;
+    
+      if (!tokens || !solutions) {
+        return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => {
+          console.log('captcha warning', warning.reason, warning.message);
+        },
+      });
+    
+      if (isValid) {
+        return res.status(200).json({ success: true });
+      }
+      return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Serverless- und Edge-Deployments
+
+<Note>
+  Der Standardmodus `replayPrevention: 'local'` speichert verwendete Token-IDs in einer prozessinternen `Map`. Wenn deine Anwendung als Serverless-Funktionen oder über mehrere Instanzen läuft, beginnt jeder Kaltstart mit einem leeren Store, sodass ein gegen eine Instanz gelöstes Token gegen eine andere wiederholt werden kann.
+
+  Um Cross-Instance-Replays zu verhindern, übergib `replayPrevention: 'remote'` zusammen mit einem `replayStore`-Adapter, der von einem atomaren verteilten Store gestützt wird (zum Beispiel Redis mit einer `SET NX`-Operation):
+
+  ```ts
+  const isValid = await verifySolution(tokens, solutions, {
+    replayPrevention: 'remote',
+    replayStore: myRedisReplayStore,
+  });
+  ```
+
+  Der `replayStore` muss eine Methode `consume(jti: string, expiresAt: number): Promise<boolean>` implementieren, die atomar beim ersten Auftreten eines bestimmten `jti` `true` und bei jedem nachfolgenden Aufruf `false` zurückgibt.
+</Note>

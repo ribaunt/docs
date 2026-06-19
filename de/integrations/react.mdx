@@ -1,0 +1,133 @@
+---
+title: "React"
+sidebarTitle: "React"
+description: "Verwende den RibauntWidget-React-Wrapper, um CAPTCHA mit typisierten Callback-Props, imperativem Ref-Handle und Live-Prop-Synchronisation zu deiner React-App hinzuzufügen."
+---
+
+Ribaunt liefert einen erstklassigen React-Wrapper unter `ribaunt/widget-react`, der dir typisierte Props, Callback-Props für jedes Widget-Event und ein imperatives Ref-Handle bietet – ohne manuelle DOM-Event-Verkabelung. Der Wrapper kümmert sich auch intern um den dynamischen Import, sodass du dich nie um SSR-Guard-Boilerplate kümmern musst, selbst wenn du ihn in einer Komponente des Next.js App Routers einsetzt.
+
+<Note>
+  Das Widget basiert auf der Web Crypto API und erfordert daher einen **sicheren Kontext**. Verwende `https://` in der Produktion und `http://localhost` während der lokalen Entwicklung. Einfache lokale Netzwerk-HTTP-URLs können in einigen Browsern fehlschlagen.
+</Note>
+
+## Den React-Wrapper verwenden (empfohlen)
+
+Importiere `RibauntWidget` aus `ribaunt/widget-react` und platziere es an beliebiger Stelle in deinem JSX. Jede Konfigurationsoption ist als typisierte Prop verfügbar, und jedes Widget-Event wird auf einen `on*`-Callback abgebildet.
+
+<Note>
+  Wenn du den **Next.js App Router** verwendest, füge `'use client'` am Anfang der Datei hinzu – Details findest du in der [Next.js-Integrationsanleitung](/integrations/nextjs).
+</Note>
+
+```tsx
+'use client'; // needed only in Next.js App Router
+
+import RibauntWidget from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  return (
+    <RibauntWidget
+      challengeEndpoint="/api/captcha/challenge"
+      verifyEndpoint="/api/captcha/verify"
+      autoVerify={true}
+      solveTimeout={15000}
+      onVerify={(detail) => console.log('Verified:', detail.solutions)}
+      onError={(detail) => console.error('Failed:', detail.error)}
+      onStateChange={(detail) => console.log('State:', detail.state)}
+    />
+  );
+}
+```
+
+## Imperatives Handle (Ref)
+
+Übergib eine `ref`, die als `RibauntWidgetHandle` typisiert ist, um `reset()`, `getState()` oder `startVerification()` aus deinem eigenen Code aufzurufen – zum Beispiel, um die Verifizierung über einen eigenen Button auszulösen oder nach einer fehlgeschlagenen Formularübermittlung zurückzusetzen.
+
+```tsx
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  const widgetRef = useRef<RibauntWidgetHandle>(null);
+
+  return (
+    <>
+      <RibauntWidget
+        ref={widgetRef}
+        challengeEndpoint="/api/captcha/challenge"
+        verifyEndpoint="/api/captcha/verify"
+      />
+      <button onClick={() => widgetRef.current?.startVerification()}>
+        Verify manually
+      </button>
+      <button onClick={() => widgetRef.current?.reset()}>
+        Reset
+      </button>
+    </>
+  );
+}
+```
+
+Die drei Methoden, die das Handle bereitstellt, sind:
+
+| Methode | Beschreibung |
+| --- | --- |
+| `startVerification()` | Startet programmatisch das Proof-of-Work-Lösen. |
+| `reset()` | Setzt das Widget in seinen Ausgangszustand zurück. |
+| `getState()` | Gibt den aktuellen Widget-Status-String zurück oder `''`, wenn das Widget noch nicht montiert ist. |
+
+## Live-Prop-Updates
+
+<Info>
+  Der React-Wrapper synchronisiert die folgenden Props nach dem Mount mit der zugrunde liegenden Web-Komponente – du musst das Widget bei Änderungen dieser Werte **nicht** neu mounten (z. B. durch Ändern von `key`):
+
+  - `challengeEndpoint`
+  - `verifyEndpoint`
+  - `autoVerify`
+  - `showWarning`
+  - `warningMessage`
+  - `solveTimeout`
+  - `disabled`
+
+  Wenn deine bestehende Integration durch Ändern von `key` ein Neumounten erzwang, sobald sich eine dieser Props änderte, kannst du diesen Workaround gefahrlos entfernen.
+</Info>
+
+## Die rohe Web-Komponente verwenden
+
+Für fortgeschrittene Fälle, in denen du die volle Kontrolle über DOM-Event-Listener wünschst, kannst du die Web-Komponente selbst mit einem Side-Effect-Import registrieren und `<ribaunt-widget>` direkt in JSX verwenden. Ribaunt liefert TypeScript-Deklarationen sowohl für `HTMLElementTagNameMap` als auch für `JSX.IntrinsicElements`, sodass du in beiden Fällen Typsicherheit erhältst.
+
+```tsx
+import { useEffect, useRef } from 'react';
+
+// Side-effect import — registers the custom element
+import 'ribaunt/widget';
+
+export default function MyForm() {
+  const widgetRef = useRef<import('ribaunt/widget').RibauntWidgetElement>(null);
+
+  useEffect(() => {
+    const widget = widgetRef.current;
+    if (!widget) return;
+
+    const handleVerify = (e: Event) => {
+      console.log('Verified!', (e as CustomEvent).detail.solutions);
+    };
+
+    widget.addEventListener('verify', handleVerify);
+    return () => widget.removeEventListener('verify', handleVerify);
+  }, []);
+
+  return (
+    <ribaunt-widget
+      ref={widgetRef}
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+    />
+  );
+}
+```
+
+<Note>
+  Wenn du den Ansatz mit der rohen Web-Komponente in einer server-gerenderten Umgebung verwendest, musst du den Import selbst absichern (z. B. innerhalb eines `useEffect`), um zu verhindern, dass er während SSR ausgeführt wird. Der `ribaunt/widget-react`-Wrapper erledigt dies automatisch, weshalb er der empfohlene Ansatz ist.
+</Note>
+
+Die vollständige Liste der Props, Attribute und Events findest du unter [Widget-Konfiguration](/widget/configuration) und [Widget-Events](/widget/events).

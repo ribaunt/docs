@@ -1,0 +1,92 @@
+---
+title: "Temalandırma"
+sidebarTitle: "Temalandırma"
+description: "ribaunt-widget'ı CSS özel özelliklerini kullanarak biçimlendirin. Renkler, boyutlar, kenarlıklar, spinner ve karanlık mod uygulaması için tüm değişkenleri kapsar."
+---
+
+`<ribaunt-widget>`, stil kapsüllemesi için Shadow DOM kullanır; bu da harici stil sayfalarının yanlışlıkla widget'ın iç kısımlarına sızamayacağı anlamına gelir. `ribaunt-widget` ana bileşen öğesinde CSS özel özellikleri (değişkenler) ayarlayarak görünümünün tamamını yine de özelleştirebilirsiniz — Shadow DOM bunları dışarıdan miras alır, böylece geçersiz kılmalarınız temiz bir şekilde akar.
+
+## Hızlı başlangıç
+
+Aşağıdaki dört değişken, minimal bir karanlık tema için yeterlidir:
+
+```css
+ribaunt-widget {
+  --ribaunt-background: #1e1e1e;
+  --ribaunt-border-color: #444;
+  --ribaunt-color: #f0f0f0;
+  --ribaunt-spinner-color: #f0f0f0;
+}
+```
+
+## CSS değişkenleri referansı
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `--ribaunt-background` | `#fdfdfd` | Widget kapsayıcı arka planı |
+| `--ribaunt-border-color` | `#dddddd8f` | Widget kenarlık rengi |
+| `--ribaunt-border-radius` | `14px` | Widget kenarlık yarıçapı |
+| `--ribaunt-color` | `#212121` | Metin rengi |
+| `--ribaunt-widget-width` | `230px` | Widget genişliği |
+| `--ribaunt-widget-height` | `58px` | Widget yüksekliği |
+| `--ribaunt-widget-padding` | `14px` | Widget iç dolgusu |
+| `--ribaunt-gap` | `15px` | Onay kutusu ile metin arasındaki boşluk |
+| `--ribaunt-checkbox-size` | `25px` | Onay kutusu genişliği ve yüksekliği |
+| `--ribaunt-checkbox-background` | `#fafafa91` | Onay kutusu arka plan rengi |
+| `--ribaunt-checkbox-border` | `1px solid #aaaaaad1` | Onay kutusu kenarlığı |
+| `--ribaunt-checkbox-border-radius` | `6px` | Onay kutusu kenarlık yarıçapı |
+| `--ribaunt-checkbox-margin` | `2px` | Onay kutusu üst/alt marjı |
+| `--ribaunt-spinner-color` | `#000` | Aktif spinner segmenti rengi |
+| `--ribaunt-spinner-background-color` | `#eee` | Pasif spinner ray rengi |
+| `--ribaunt-spinner-thickness` | `5px` | Spinner halkası kalınlığı |
+| `--ribaunt-checkmark` | Yerleşik yeşil onay işareti | Başarı onay işareti SVG URL'si |
+| `--ribaunt-error-cross` | Yerleşik kırmızı uyarı simgesi | Hata çarpı simgesi SVG URL'si |
+| `--ribaunt-logo-color` | `#666` | Ribaunt logosunun rengi |
+| `--ribaunt-font` | sistem sans-serif | Yazı tipi yığını |
+
+## Karanlık mod
+
+Ribaunt otomatik bir karanlık modu zorlamaz. Bunun yerine, kendiniz bağlarsınız — ya işletim sistemi tercihine yanıt veren bir medya sorgusu aracılığıyla ya da uygulamanızın kontrol ettiği bir CSS sınıfı aracılığıyla.
+
+### Medya sorgusu kullanma
+
+```css
+@media (prefers-color-scheme: dark) {
+  ribaunt-widget {
+    --ribaunt-background: #2d2d2d;
+    --ribaunt-border-color: #555;
+    --ribaunt-color: #ffffff;
+    --ribaunt-checkbox-background: #444;
+    --ribaunt-spinner-color: #ffffff;
+    --ribaunt-spinner-background-color: #333;
+    --ribaunt-logo-color: #cccccc;
+  }
+}
+```
+
+### CSS sınıfı kullanma
+
+Uygulamanızın bir üst öğeye sınıf ekleyen kendi karanlık mod geçişi varsa (örneğin `<html class="dark">`), geçersiz kılmaları o sınıfa göre kapsayabilirsiniz:
+
+```css
+.dark ribaunt-widget {
+  --ribaunt-background: #111;
+  --ribaunt-color: #eee;
+}
+```
+
+## Özel boyutlar
+
+Boyut değişkenlerini geçersiz kılarak widget'ı form düzeninize uyacak şekilde yeniden boyutlandırabilirsiniz. Aşağıdaki örnek bir `.large` varyantı oluşturur:
+
+```css
+ribaunt-widget.large {
+  --ribaunt-widget-width: 300px;
+  --ribaunt-widget-height: 72px;
+  --ribaunt-checkbox-size: 32px;
+}
+```
+
+<Tip>
+  `margin`, `box-shadow` ve `display` gibi standart CSS özellikleri, inline-block bir özel öğe olduğu için doğrudan `ribaunt-widget` ana öğesinde çalışır. Yalnızca boşluk veya gölge uygulamak için bir sarmalayıcı `<div>`'e ihtiyacınız yoktur.
+</Tip>

@@ -1,0 +1,88 @@
+---
+title: "Tekrar Oynatma Koruması"
+sidebarTitle: "Tekrar Oynatma Koruması"
+description: "Ribaunt'un süreç yerel ve uzak tekrar oynatma depolarıyla challenge token yeniden kullanımını nasıl önlediğini ve dağıtımınız için her bir modu ne zaman kullanmanız gerektiğini öğrenin."
+---
+
+Bir tarayıcı bir Ribaunt challenge'ını çözdüğünde ve sunucunuz çözümü kabul ettiğinde, o token bir daha asla kabul edilmemelidir. Tekrar oynatma koruması olmadan, geçerli bir `{ tokens, solutions }` çiftini ele geçiren veya kaydeden bir saldırgan, token süresi dolana kadar bunu istediği kadar yeniden gönderebilir — tüm iş kanıtı gereksinimini atlatır. Ribaunt, tüketilen token ID'lerini (`jti` değerlerini) izleyerek ve daha önce görülmüş herhangi bir tokeni reddederek bu sorunu çözer.
+
+## Tekrar oynatma önleme modları
+
+Ribaunt, `verifySolution()` üzerindeki `replayPrevention` seçeneği aracılığıyla yapılandırılan, tekrar oynatma önleme için üç mod destekler.
+
+| Mod | Davranış | Ne zaman kullanılır |
+| --- | --- | --- |
+| `local` (varsayılan) | Geçerli Node.js süreci içinde bellekteki bir `Map` içinde kullanılan tokenleri takip eder | Tek süreçli dağıtımlar |
+| `remote` | `ReplayStore` arayüzü aracılığıyla kendi dağıtık deponuza devreder | Sunucusuz işlevler, yatay olarak ölçeklendirilen hizmetler, birden çok Node.js örneği |
+| `disabled` | Tekrar oynatma kontrollerini tamamen atlar | Yalnızca başka bir katman zaten tekrar oynatmayı önlüyorsa veya geçiş sırasında eski bir devre dışı bırakma seçeneği olarak |
+
+## Yerel mod (varsayılan)
+
+Yerel mod yapılandırma gerektirmez. `verifySolution()` işlevini `replayPrevention` seçeneği olmadan çağırdığınızda, Ribaunt tüketilen `jti` değerlerini kaydetmek için otomatik olarak süreç yerel bir `Map` kullanır. Aynı tokeni aynı süreç içinde iki kez gönderme girişimi reddedilir.
+
+```ts
+// Default behavior — local replay protection is active
+const valid = await verifySolution(tokens, solutions);
+```
+
+Bu, tek bir uzun süre çalışan sürecin tüm istekleri ele aldığı çoğu geleneksel Node.js dağıtımı için doğru seçimdir. Süresi dolmuş token ID'leri, yeni doğrulamalar gerçekleştikçe otomatik olarak temizlenir, böylece bellek kullanımı sınırlı kalır.
+
+<Tip>
+  Yerel tekrar oynatma korumasından yararlanmak için fazladan bir şey yapılandırmanıza gerek yoktur — varsayılan olarak açıktır.
+</Tip>
+
+## Dağıtık dağıtımlar için uzak mod
+
+Uygulamanız birden çok Node.js örneği üzerinde çalışıyorsa, sunucusuz işlevler kullanıyorsa veya edge worker'lara dağıtılıyorsa, her sürecin kendi belleği vardır. Yerel mod aralarında durum paylaşamaz, bu da bir örnek tarafından tüketilen bir tokenin başka bir örneğe karşı tekrar oynatılabileceği anlamına gelir. Bu durumlarda `remote` moduna ihtiyacınız vardır.
+
+`remote` modu ile, `ReplayStore` arayüzünü uygulayan bir `replayStore` nesnesi sağlarsınız. Ribaunt, doğrulanan her token için `replayStore.consume(jti, expiresAt)` çağrısı yapar. Uygulamanız atomik "kullanıldı olarak işaretle" işleminden sorumludur — Redis veya Valkey ile standart desen `SET NX EX`'tir (yoksa ayarla, sona erme ile).
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: {
+    consume: async (jti, expiresAt) => {
+      // Returns true if consumed (first time), false if already seen.
+      // Implement with Redis/Valkey SET NX EX for atomic "set if not exists".
+      return true;
+    },
+  },
+});
+```
+
+`expiresAt` değeri saniye cinsinden bir Unix zaman damgasıdır — bunu önbellek anahtarınız için TTL olarak doğrudan iletin, böylece girişler otomatik olarak sona erer ve eski veri biriktirmezsiniz.
+
+<Tip>
+  Redis/Valkey anahtarınızda TTL ayarlamak için `expiresAt` argümanını kullanın. Bu, manuel bir bakım yapmadan deponuzu temiz tutar.
+</Tip>
+
+## Tekrar oynatma korumasını devre dışı bırakma
+
+<Warning>
+  Tekrar oynatma korumasını yalnızca yığınınızda token yeniden kullanımını önleyen ayrı bir mekanizma varsa devre dışı bırakın. Tekrar oynatma koruması devre dışı bırakılmışken, geçerli bir çözüm tokenin TTL penceresi içinde birden çok kez gönderilebilir.
+</Warning>
+
+Daha önce `verifySolution()` işlevinin tekrar oynatma kontrolleri olmadan davrandığı eski davranışa güveniyorsanız, geçiş yaparken bu davranışı açıkça geri yükleyebilirsiniz:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'disabled',
+});
+```
+
+## ReplayStore arayüzü
+
+`remote` modunu kullanırken, `replayStore` nesneniz aşağıdaki arayüzü karşılamalıdır:
+
+```ts
+interface ReplayStore {
+  consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+| Parametre | Tür | Açıklama |
+| --- | --- | --- |
+| `jti` | `string` | Doğrulanan challenge tokeninin benzersiz ID'si |
+| `expiresAt` | `number` | Bu tokenin sona ereceği saniye cinsinden Unix zaman damgası |
+
+Doğrulamanın devam etmesine izin vermek için `true` döndürün (bu tokenin ilk kez görüldüğü anlamına gelir). Tekrar oynatma olarak reddetmek için `false` döndürün. İşlem atomik olmalıdır — eşzamanlı yük altında yarış koşullarından kaçınmak için ayrı bir kontrol-sonra-ayarla yerine tek bir Redis `SET NX EX` komutu kullanın.
