@@ -45,7 +45,7 @@ function verifySolution(
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `replayPrevention` | `'local' | 'remote' | 'disabled'` | `'local'` | Controls how token reuse is prevented |
+| `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Controls how token reuse is prevented |
 | `replayStore` | `ReplayStore` | `undefined` | Required when `replayPrevention` is `'remote'`. Implements the `consume()` method. |
 | `debug` | `boolean` | auto (true in dev) | Log verification warnings to console |
 | `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Callback for structured warning events |
