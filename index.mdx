@@ -1,7 +1,7 @@
 ---
-title: "Ribaunt Docs: Stateless Proof-of-Work CAPTCHA Library"
+title: "Ribaunt"
 sidebarTitle: "Home"
-description: "Ribaunt is a stateless PoW CAPTCHA library for Node.js and browsers. No database needed — challenges are signed JWTs verified on your server."
+description: "Ribaunt is a stateless PoW CAPTCHA library for Node.js and browsers."
 ---
 
 Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern browsers. Your server issues challenges as signed JWTs, the browser widget solves the PoW puzzle, and your server verifies the submitted proof — all without touching a database. Drop it in front of any form, sign-up flow, or API endpoint to stop bots while keeping the experience smooth for real users.
@@ -10,12 +10,15 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
   <Card title="Introduction" icon="book-open" href="/introduction">
     Learn what Ribaunt is, how proof-of-work CAPTCHA protects your app, and why stateless verification makes deployment simple.
   </Card>
+
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Install Ribaunt, configure your secret, add two server endpoints, and embed the browser widget in under five minutes.
   </Card>
+
   <Card title="Server Setup" icon="server" href="/server/express">
     Full Express server example with challenge and verify endpoints, replay protection, and TypeScript types.
   </Card>
+
   <Card title="API Reference" icon="code" href="/api/create-challenge">
     Complete reference for `createChallenge`, `verifySolution`, `solveChallenge`, and all configuration options.
   </Card>
@@ -43,12 +46,12 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
 
     ```ts
     import { createChallenge, verifySolution } from 'ribaunt';
-
+    
     app.get('/api/captcha/challenge', (_req, res) => {
       const challenges = createChallenge(5, 4, 120);
       res.json({ challenges });
     });
-
+    
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
       const valid = await verifySolution(tokens, solutions);
@@ -62,13 +65,13 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
 
     ```html
     <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
-
+    
     <ribaunt-widget
       challenge-endpoint="/api/captcha/challenge"
       verify-endpoint="/api/captcha/verify"
       auto-verify="true"
     ></ribaunt-widget>
-
+    
     <script>
       document.querySelector('ribaunt-widget')
         .addEventListener('verify', (e) => {
