@@ -1,0 +1,142 @@
+---
+title: "Ribaunt-API: Referenz für TypeScript-Typen und -Interfaces"
+sidebarTitle: "Typen"
+description: "Vollständige TypeScript-Typreferenz für Ribaunt: ChallengeToken, ChallengeSolution, ReplayStore, VerifySolutionOptions, VerifyWarning und mehr."
+---
+
+Ribaunt liefert TypeScript-Typen für alle seine öffentlichen APIs. Importieren Sie Typen aus `ribaunt` zur Verwendung in Ihrem serverseitigen Code.
+
+## `ChallengeToken`
+
+Ein signiertes JWT-Challenge-Token. Dies ist der Zeichenkettenwert, der im von `createChallenge()` zurückgegebenen Array enthalten ist und den Sie an `verifySolution()` zurückgeben.
+
+```ts
+type ChallengeToken = string; // A signed JWT challenge token
+```
+
+## `ChallengeSolution`
+
+Die vom Browser-Solver (oder in Tests von `solveChallenge()`) erzeugte Proof-of-Work-Lösung. Die `nonce` ist der Wert, der zusammen mit der Challenge-Zeichenkette gehasht einen SHA-256-Digest erzeugt, der mit der erforderlichen Anzahl führender Null-Hex-Ziffern beginnt.
+
+```ts
+interface ChallengeSolution {
+  nonce: string; // The nonce that satisfies the PoW condition
+  hash: string;  // The SHA-256 hash (hex) produced by nonce
+}
+```
+
+## `ReplayStore`
+
+Die Schnittstelle, die Sie implementieren, um verteilten Replay-Schutz bereitzustellen, wenn `replayPrevention` auf `'remote'` gesetzt ist. Sie übergeben Ihre Implementierung an `verifySolution()` über `options.replayStore`.
+
+```ts
+interface ReplayStore {
+  consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+`jti` ist die JWT-Token-ID, die die Challenge eindeutig identifiziert. `expiresAt` ist ein Unix-Zeitstempel in Sekunden, der angibt, wann das Token abläuft. Geben Sie `true` zurück, um die Einreichung zuzulassen (Erstverwendung), und `false`, um sie abzulehnen (Replay erkannt). Ihre Implementierung muss atomar sein — verwenden Sie eine Primitive wie Redis `SET NX EXAT`, um Race Conditions zu vermeiden.
+
+## `LocalReplayStore`
+
+Die eingebaute, prozesslokale Implementierung von `ReplayStore`, die aus `ribaunt` exportiert wird. Sie speichert verbrauchte Token-IDs im Speicher und entfernt Einträge automatisch, sobald deren TTL abgelaufen ist. Verwenden Sie dies, wenn `replayPrevention` auf `'local'` gesetzt ist (Standard) — es wird in diesem Modus automatisch verwendet. Sie können es auch direkt instanziieren, wenn Sie einen dedizierten Store pro Handler benötigen.
+
+```ts
+class LocalReplayStore implements ReplayStore {
+  async consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+```ts
+import { LocalReplayStore } from 'ribaunt';
+
+const store = new LocalReplayStore();
+
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: store,
+});
+```
+
+`LocalReplayStore` ist für Multi-Process- oder Serverless-Bereitstellungen nicht geeignet. Implementieren Sie für solche Umgebungen Ihre eigene `ReplayStore`-Klasse, die von einem verteilten atomaren Store wie Redis `SET NX EXAT` gestützt wird.
+
+## `ReplayPreventionMode`
+
+Steuert, wie `verifySolution()` verhindert, dass ein Token mehr als einmal eingereicht wird.
+
+```ts
+type ReplayPreventionMode = 'disabled' | 'local' | 'remote';
+```
+
+- **`'local'`** (Standard) — Replay-Prüfungen sind prozesslokal. Geeignet für Bereitstellungen mit einem einzigen Prozess.
+- **`'remote'`** — Replay-Prüfungen verwenden Ihren `ReplayStore`. Verwenden Sie dies für Serverless- oder horizontal skalierte Bereitstellungen.
+- **`'disabled'`** — keine Replay-Prüfungen. Tokens können bis zum Ablauf wiederverwendet werden. Verwenden Sie dies nur, wenn eine andere Schicht den Replay-Schutz übernimmt.
+
+## `VerifySolutionOptions`
+
+Optionale Konfiguration, die als drittes Argument an `verifySolution()` übergeben wird.
+
+```ts
+interface VerifySolutionOptions {
+  replayPrevention?: ReplayPreventionMode; // default: 'local'
+  replayStore?: ReplayStore;               // required when replayPrevention is 'remote'
+  debug?: boolean;                          // default: true in development
+  onWarning?: (warning: VerifyWarning) => void;
+}
+```
+
+## `VerifyWarning`
+
+Das strukturierte Warnobjekt, das an den `onWarning`-Callback übergeben wird, wenn `verifySolution()` auf ein Problem stößt. Ermöglicht es Ihnen, Telemetrie zu erfassen, ohne Konsolenausgaben zu aktivieren.
+
+```ts
+interface VerifyWarning {
+  reason: VerifyWarningReason;
+  message: string;
+  error?: unknown;
+}
+```
+
+## `VerifyWarningReason`
+
+Eine String-Union, die die Kategorie des Verifizierungsfehlers beschreibt. Sie können diese verwenden, um Warnungen an verschiedene Monitoring-Kanäle oder Metriken weiterzuleiten.
+
+```ts
+type VerifyWarningReason =
+  | 'invalid-token'
+  | 'expired-token'
+  | 'invalid-solution'
+  | 'replay-detected'
+  | 'configuration-error';
+```
+
+## `SolveChallengeOptions`
+
+Optionale Schutzgrenzen, die an `solveChallenge()` übergeben werden, um zu verhindern, dass es während Tests unendlich lange läuft.
+
+```ts
+interface SolveChallengeOptions {
+  maxIterations?: number; // hard cap on nonce attempts
+  maxDurationMs?: number; // default: 30000 ms
+}
+```
+
+## `WidgetState`
+
+Importiert aus `ribaunt/widget`. Repräsentiert den aktuellen Zustand des CAPTCHA-Widgets im Browser.
+
+```ts
+type WidgetState = 'initial' | 'verifying' | 'done' | 'error';
+```
+
+## `RibauntWidgetHandle`
+
+Importiert aus `ribaunt/widget-react`. Dies ist das imperative Handle, das über ein React-`ref` bereitgestellt wird, das an die `<RibauntWidget>`-Komponente angehängt ist. Verwenden Sie es, um das Widget programmatisch aus Ihrem Anwendungscode zu steuern.
+
+```ts
+interface RibauntWidgetHandle {
+  reset(): void;
+  getState(): WidgetState | undefined;
+  startVerification(): void;
+}
+```

@@ -1,0 +1,89 @@
+---
+title: "solveChallenge — Test İçin Senkron PoW Çözücüsü"
+sidebarTitle: "solveChallenge"
+description: "solveChallenge(token, options?) JWT meydan okuma jetonlarını senkron olarak çözer. Testlerde ve araçlarda kullanın — üretim istek işleyicilerinde kullanmayın."
+---
+
+`solveChallenge()`, tarayıcı widget'ı tarafından kullanılan aynı iş kanıtı algoritmasını çalıştırır, ancak Node.js'de senkron olarak. Meydan okuma ve doğrulama uç noktalarınızın otomatik testleri için tasarlanmıştır — istek işleyicilerinde üretim kullanımı için değil.
+
+## İçe aktarma
+
+```ts
+import { solveChallenge } from 'ribaunt';
+```
+
+## İmza
+
+```ts
+// Tek jeton
+function solveChallenge(
+  token: ChallengeToken,
+  options?: SolveChallengeOptions
+): ChallengeSolution | undefined
+
+// Jeton dizisi
+function solveChallenge(
+  token: ChallengeToken[],
+  options?: SolveChallengeOptions
+): ChallengeSolution[] | undefined
+```
+
+## Parametreler
+
+<ParamField path="token" type="ChallengeToken | ChallengeToken[]" required>
+  `createChallenge()`'tan tek bir JWT meydan okuma jetonu veya bir jeton dizisi.
+</ParamField>
+
+<ParamField path="options" type="SolveChallengeOptions">
+  Uzun süren senkron çözümleri önlemek için isteğe bağlı korumalar.
+
+  <Expandable title="SolveChallengeOptions">
+    <ParamField path="maxIterations" type="number">
+      Jeton başına nonce denemesinde sert sınır. Ulaşıldığında `undefined` döndürür.
+    </ParamField>
+
+    <ParamField path="maxDurationMs" type="number" default="30000">
+      Jeton başına milisaniye cinsinden maksimum senkron çözüm süresi. Aşıldığında `undefined` döndürür.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Dönüş değeri
+
+Tek jeton girişi için bir `ChallengeSolution` (`{ nonce: string; hash: string }`) veya bir dizi girişi için `ChallengeSolution[]` döndürür. Herhangi bir korumaya çarpılırsa veya bir jeton geçersizse `undefined` döndürür. Bir diziyi çözerken, tek bir jeton başarısız olduğu anda `undefined` döndürülür — kısmi sonuçlar döndürülmez.
+
+## Örnek
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Hız için testlerde düşük zorluk kullanın
+const tokens = createChallenge(3, 2, 60);
+const solutions = solveChallenge(tokens);
+
+if (solutions) {
+  const valid = await verifySolution(tokens, solutions);
+  console.log('Valid:', valid); // true
+}
+```
+
+Korumalarla:
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,
+  maxIterations: 500_000,
+});
+
+if (!solution) {
+  console.log('Solver gave up — difficulty too high or timeout reached');
+}
+```
+
+<Warning>
+  `solveChallenge` senkron ve CPU yoğundur. Bunu üretim HTTP istek işleyicisinde asla çağırmayın — Node.js olay döngünüzü bloklar.
+</Warning>
+
+<Tip>
+  Testlerde zorluk 3-4 kullanın. Zorluk 5, test paketinizi gözle görülür şekilde yavaşlatır.
+</Tip>

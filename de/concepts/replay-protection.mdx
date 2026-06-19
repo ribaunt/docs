@@ -1,0 +1,88 @@
+---
+title: "Replay-Schutz in Ribaunt: lokale und Remote-Modi"
+sidebarTitle: "Replay-Schutz"
+description: "Erfahren Sie, wie Ribaunt die Wiederverwendung von Challenge-Tokens mit prozesslokalen und Remote-Replay-Stores verhindert und wann Sie welchen Modus für Ihre Bereitstellung verwenden sollten."
+---
+
+Sobald ein Browser eine Ribaunt-Challenge gelöst hat und Ihr Server die Lösung akzeptiert hat, sollte dieses Token nie wieder akzeptiert werden. Ohne Replay-Schutz könnte ein Angreifer, der ein gültiges `{ tokens, solutions }`-Paar abfängt oder aufzeichnet, es so oft wieder einreichen, wie er möchte, bis das Token abläuft — und damit die gesamte Proof-of-Work-Anforderung umgehen. Ribaunt löst dies, indem es verbrauchte Token-IDs (`jti`-Werte) verfolgt und jedes Token ablehnt, das bereits gesehen wurde.
+
+## Modi zur Replay-Verhinderung
+
+Ribaunt unterstützt drei Modi zur Replay-Verhinderung, die über die Option `replayPrevention` von `verifySolution()` konfiguriert werden.
+
+| Modus | Verhalten | Wann verwenden |
+|---|---|---|
+| `local` (Standard) | Verfolgt verwendete Tokens in einer In-Memory-`Map` innerhalb des aktuellen Node.js-Prozesses | Bereitstellungen mit einem einzigen Prozess |
+| `remote` | Delegiert an Ihren eigenen verteilten Store über die `ReplayStore`-Schnittstelle | Serverless-Funktionen, horizontal skalierte Dienste, mehrere Node.js-Instanzen |
+| `disabled` | Überspringt Replay-Prüfungen vollständig | Nur wenn eine andere Schicht bereits Replay verhindert oder als Legacy-Opt-out während einer Migration |
+
+## Lokaler Modus (Standard)
+
+Der lokale Modus erfordert keine Konfiguration. Wenn Sie `verifySolution()` ohne eine `replayPrevention`-Option aufrufen, verwendet Ribaunt automatisch eine prozesslokale `Map`, um verbrauchte `jti`-Werte zu speichern. Jeder Versuch, dasselbe Token innerhalb desselben Prozesses zweimal einzureichen, wird abgelehnt.
+
+```ts
+// Default behavior — local replay protection is active
+const valid = await verifySolution(tokens, solutions);
+```
+
+Dies ist die richtige Wahl für die meisten traditionellen Node.js-Bereitstellungen, bei denen ein einziger langlaufender Prozess alle Anfragen bearbeitet. Abgelaufene Token-IDs werden automatisch bereinigt, sobald neue Verifizierungen erfolgen, sodass die Speichernutzung begrenzt bleibt.
+
+<Tip>
+  Sie müssen nichts zusätzlich konfigurieren, um vom lokalen Replay-Schutz zu profitieren — er ist standardmäßig aktiv.
+</Tip>
+
+## Remote-Modus für verteilte Bereitstellungen
+
+Wenn Ihre Anwendung über mehrere Node.js-Instanzen läuft, Serverless-Funktionen verwendet oder auf Edge-Worker bereitgestellt wird, hat jeder Prozess seinen eigenen Speicher. Der lokale Modus kann den Zustand zwischen ihnen nicht teilen, was bedeutet, dass ein von einer Instanz verbrauchtes Token gegen jede andere Instanz wiederverwendet werden kann. In diesen Fällen benötigen Sie den `remote`-Modus.
+
+Im `remote`-Modus stellen Sie ein `replayStore`-Objekt bereit, das die `ReplayStore`-Schnittstelle implementiert. Ribaunt ruft `replayStore.consume(jti, expiresAt)` für jedes verifizierte Token auf. Ihre Implementierung ist für die atomare „Als verwendet markieren"-Operation verantwortlich — das Standardmuster mit Redis oder Valkey ist `SET NX EX` (Setzen, wenn nicht vorhanden, mit Ablauf).
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: {
+    consume: async (jti, expiresAt) => {
+      // Returns true if consumed (first time), false if already seen.
+      // Implement with Redis/Valkey SET NX EX for atomic "set if not exists".
+      return true;
+    },
+  },
+});
+```
+
+Der Wert `expiresAt` ist ein Unix-Zeitstempel in Sekunden — geben Sie ihn direkt als TTL für Ihren Cache-Schlüssel weiter, damit Einträge automatisch ablaufen und Sie keine veralteten Daten ansammeln.
+
+<Tip>
+  Verwenden Sie das Argument `expiresAt`, um die TTL für Ihren Redis/Valkey-Schlüssel zu setzen. So bleibt Ihr Store ohne manuelle Wartung sauber.
+</Tip>
+
+## Replay-Schutz deaktivieren
+
+<Warning>
+  Deaktivieren Sie den Replay-Schutz nur, wenn ein separater Mechanismus in Ihrem Stack die Token-Wiederverwendung bereits verhindert. Mit deaktiviertem Replay-Schutz kann eine gültige Lösung mehrfach innerhalb des TTL-Fensters des Tokens eingereicht werden.
+</Warning>
+
+Wenn Sie zuvor auf das alte Verhalten angewiesen waren, bei dem `verifySolution()` keine Replay-Prüfungen hatte, können Sie dieses Verhalten während der Migration explizit wiederherstellen:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'disabled',
+});
+```
+
+## ReplayStore-Schnittstelle
+
+Bei Verwendung des `remote`-Modus muss Ihr `replayStore` die folgende Schnittstelle erfüllen:
+
+```ts
+interface ReplayStore {
+  consume(jti: string, expiresAt: number): Promise<boolean>;
+}
+```
+
+| Parameter | Typ | Beschreibung |
+|---|---|---|
+| `jti` | `string` | Die eindeutige ID des zu verifizierenden Challenge-Tokens |
+| `expiresAt` | `number` | Unix-Zeitstempel in Sekunden, wann dieses Token abläuft |
+
+Geben Sie `true` zurück, um die Verifizierung fortzusetzen (dies ist das erste Mal, dass dieses Token gesehen wurde). Geben Sie `false` zurück, um es als Replay abzulehnen. Die Operation muss atomar sein — verwenden Sie einen einzigen `SET NX EX`-Befehl von Redis statt eines separaten Check-then-Set, um Race Conditions unter gleichzeitiger Last zu vermeiden.

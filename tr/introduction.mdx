@@ -1,0 +1,69 @@
+---
+title: "Ribaunt: Node.js için Durumsuz İş Kanıtı CAPTCHA'sı"
+sidebarTitle: "Giriş"
+description: "Ribaunt'un ne olduğunu, iş kanıtı CAPTCHA'sının formlarınızı ve API'lerinizi nasıl koruduğunu ve Ribaunt'u durumsuz ve entegrasyonu kolay yapan şeyleri öğrenin."
+---
+
+Ribaunt, Node.js ve modern tarayıcılar için durumsuz bir iş kanıtı (proof-of-work) CAPTCHA kütüphanesidir. Meydan okuma durumunu izlemek için merkezi bir veritabanına ya da üçüncü taraf bir hizmete güvenmek yerine, Ribaunt sunucunuzun ihtiyaç duyduğu her şeyi doğrudan imzalı bir JWT'ye kodlar. Sunucunuz meydan okumalar yayınlar, tarayıcı bunları çözer ve doğrulama basit bir imza kontrolüyle gerçekleşir — harici depolama gerekmez. Paylaşılan durumu yönetmenin operasyonel yükü olmadan güvenilir bot koruması isteyen geliştiriciler için tasarlanmıştır.
+
+## Nasıl çalışır
+
+Akış üç adımdan oluşur: sunucunuz imzalı bir JWT meydan okuması oluşturur, tarayıcı widget'ı geçerli bir nonce üretmek için iş kanıtı hesaplaması yapar ve sunucunuz herhangi bir işlemi kabul etmeden önce imzayı ve nonce'u yeniden doğrular. Meydan okuma yükü kendi içinde tamamlandığı ve `RIBAUNT_SECRET` ile imzalandığı için sunucu, istekler arasında hiçbir şey kalıcı hale getirmeden bunu istediği zaman doğrulayabilir.
+
+Kriptografik ayrıntılar ve yeniden oynatma koruma stratejileri hakkında daha derin bir bakış için [Nasıl çalışır](/tr/concepts/how-it-works) sayfasına bakın.
+
+## Temel özellikler
+
+<CardGroup cols={2}>
+  <Card title="Durumsuz" icon="database">
+    Meydan okumalar imzalı JWT'lerdir — bunları yayınlamak veya doğrulamak için veritabanı, önbellek veya paylaşılan oturum deposu gerekmez.
+  </Card>
+  <Card title="Tarayıcı widget'ı" icon="window">
+    Yerleşik bir Web Bileşeni düz HTML ile çalışır. Bir React sarmalayıcı (`ribaunt/widget-react`) React ve Next.js ile entegre olur.
+  </Card>
+  <Card title="Yeniden oynatma koruması" icon="shield-check">
+    Yerel (işlem düzeyinde) yeniden oynatma koruması varsayılan olarak açıktır. Sunucusuz veya çok örnekli dağıtımlar için bir Redis/Valkey deposu takabilirsiniz.
+  </Card>
+  <Card title="Tam türlendirilmiş" icon="brackets-curly">
+    TypeScript ile yazılmıştır ve tam tür bildirimleri dahildir. `@types` paketi gerekmez.
+  </Card>
+  <Card title="Yapılandırılabilir zorluk" icon="sliders">
+    Güvenlik ve kullanıcı deneyimi arasında denge kurmak için her uç nokta için `difficulty`, `amount` ve `ttlSeconds` ayarlayın.
+  </Card>
+  <Card title="Tema desteği" icon="palette">
+    Widget'ı CSS özel özellikleriyle stillendirin — shadow DOM iç yapılarına dokunmadan herhangi bir tasarım sistemine uyum sağlayın.
+  </Card>
+</CardGroup>
+
+## Kurulum
+
+Ribaunt'u tercih ettiğiniz paket yöneticisini kullanarak npm'den kurun.
+
+<CodeGroup>
+  ```bash npm
+  npm install ribaunt
+  ```
+
+  ```bash yarn
+  yarn add ribaunt
+  ```
+
+  ```bash pnpm
+  pnpm add ribaunt
+  ```
+</CodeGroup>
+
+<Note>
+  Tarayıcıda çözüm için güvenli bir bağlam gereklidir — üretimde HTTPS veya geliştirme sırasında `http://localhost` kullanın. Widget'ı `http://192.168.x.x` gibi düz bir LAN adresinden yüklemek başarısız olur çünkü Web Crypto API'si güvenli olmayan bağlamlarda kullanılamaz.
+</Note>
+
+## Sonraki adımlar
+
+<CardGroup cols={2}>
+  <Card title="Hızlı Başlangıç" icon="rocket" href="/tr/quickstart">
+    Gizli anahtarınızı ayarlayın, sunucu uç noktaları oluşturun ve widget'ı beş dakikadan kısa sürede sayfanıza ekleyin.
+  </Card>
+  <Card title="Nasıl çalışır" icon="magnifying-glass" href="/tr/concepts/how-it-works">
+    Tam iş kanıtı akışını, JWT meydan okuma yapısını ve yeniden oynatma önlemeyi derinlemesine anlayın.
+  </Card>
+</CardGroup>

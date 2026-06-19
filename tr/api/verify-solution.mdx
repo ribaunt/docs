@@ -1,0 +1,99 @@
+---
+title: "verifySolution — Tarayıcı Tarafından Gönderilen PoW Kanıtını Doğrula"
+sidebarTitle: "verifySolution"
+description: "verifySolution(token, nonce, options?) JWT imzalarını, karma kanıtlarını, süre dolma ve yeniden oynatma önlemeyi doğrular. Promise<boolean> döndürür."
+---
+
+`verifySolution()`, tarayıcının tüm meydan okuma jetonlarını doğru şekilde çözdüğünü kontrol etmek için doğrulama uç noktanızda sunucu tarafında çağrılır. JWT imzasını, jeton süre dolmasını, SHA-256 karma kanıtını kontrol eder ve (varsayılan olarak) jeton yeniden kullanımını engeller.
+
+## İçe aktarma
+
+```ts
+import { verifySolution } from 'ribaunt';
+```
+
+## İmza
+
+```ts
+function verifySolution(
+  token: ChallengeToken | ChallengeToken[],
+  nonce: number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[],
+  options?: VerifySolutionOptions
+): Promise<boolean>
+```
+
+## Parametreler
+
+<ParamField path="token" type="ChallengeToken | ChallengeToken[]" required>
+  `createChallenge()` tarafından döndürülen orijinal JWT jeton(lar)ı. Meydan okuma uç noktanızın yayınladığı aynı jetonları geçirin.
+</ParamField>
+
+<ParamField path="nonce" type="number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[]" required>
+  Tarayıcı tarafından gönderilen çözüm(ler). Şunlardan biri olabilir:
+
+  - Tek bir nonce dizesi
+  - Nonce dizelerinden oluşan bir dizi
+  - Bir `ChallengeSolution` nesnesi `{ nonce: string; hash: string }`
+  - `ChallengeSolution` nesnelerinden oluşan bir dizi (widget'ın `solutions` olarak gönderdiği şey)
+</ParamField>
+
+<ParamField path="options" type="VerifySolutionOptions">
+  İsteğe bağlı yapılandırma nesnesi. Aşağıdaki seçenekler tablosuna bakın.
+</ParamField>
+
+## Seçenekler
+
+| Seçenek | Tip | Varsayılan | Açıklama |
+| --- | --- | --- | --- |
+| `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Jeton yeniden kullanımının nasıl engelleneceğini kontrol eder |
+| `replayStore` | `ReplayStore` | `undefined` | `replayPrevention` `'remote'` olduğunda gereklidir. `consume()` yöntemini uygular. |
+| `debug` | `boolean` | otomatik (geliştirmede true) | Doğrulama uyarılarını konsola günlüğe kaydet |
+| `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Yapılandırılmış uyarı olayları için geri çağırma |
+
+## Dönüş değeri
+
+`Promise<boolean>`. YALNIZCA tüm jetonlar geçerli çözümlere sahipse ve yeniden oynatma kontrollerini geçerse `true` döndürür. Herhangi bir başarısızlık için hata fırlatmadan `false` döndürür.
+
+## Örnekler
+
+Temel kullanım:
+
+```ts
+const { tokens, solutions } = req.body;
+const valid = await verifySolution(tokens, solutions);
+```
+
+Yapılandırılmış uyarı telemetrisi ile:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  onWarning: (warning) => {
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'replay-detected' | 'configuration-error'
+    console.log('captcha warning', warning.reason, warning.message);
+  },
+});
+```
+
+Uzak yeniden oynatma deposu ile:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: {
+    consume: async (jti, expiresAt) => {
+      // TTL ile atomik yoksa-ayarla (örn. Redis SET NX EX)
+      return await redis.set(jti, '1', 'NX', 'EXAT', expiresAt) !== null;
+    },
+  },
+});
+```
+
+## Uyarı sebepleri
+
+| Sebep | Açıklama |
+| --- | --- |
+| `invalid-token` | JWT imzası geçersiz veya bozuk |
+| `expired-token` | Meydan okuma TTL'i geçti |
+| `invalid-solution` | Nonce geçerli bir karma üretmiyor |
+| `replay-detected` | Jeton zaten tüketildi |
+| `configuration-error` | `replayPrevention` `'remote'` ama `replayStore` sağlanmadı |

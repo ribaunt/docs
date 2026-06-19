@@ -1,0 +1,109 @@
+---
+title: "Ribaunt Widget Yapılandırması: Öznitelikler ve Proplar Referansı"
+sidebarTitle: "Yapılandırma"
+description: "Tüm ribaunt-widget HTML öznitelikleri ve React propları için eksiksiz referans: uç noktalar, auto-verify, zaman aşımı, devre dışı durum ve meydan okuma yanıt formatları."
+---
+
+`<ribaunt-widget>` Web Bileşeni ve onun React sarmalayıcısı aynı yapılandırma yüzeyini paylaşır. HTML kebap-case öznitelikler kullanır; React deve-case proplar kullanır. Yığınınıza bağlı olarak ikisini birbirinin yerine kullanabilirsiniz — burada açıklanan her şey aksi belirtilmedikçe her ikisi için de geçerlidir.
+
+## Hızlı örnek
+
+Aşağıdaki kod parçası, HTML öğesinde ayarlanan her mevcut özniteliği gösterir:
+
+```html
+<ribaunt-widget
+  challenge-endpoint="/api/captcha/challenge"
+  verify-endpoint="/api/captcha/verify"
+  auto-verify="true"
+  show-warning="false"
+  warning-message="Verification may take longer on this device."
+  solve-timeout="15000"
+  disabled="false"
+></ribaunt-widget>
+```
+
+## Öznitelik & prop referansı
+
+| HTML Özniteliği | React Prop | Tip | Varsayılan | Açıklama |
+|---|---|---|---|---|
+| `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | `{ challenges: string[] }` döndüren URL uç noktası. Tanımsızsa widget otomatik olarak getiremez. |
+| `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | Çözümleri POST edecek URL uç noktası. Tanımsızsa, çözücüyü doğrudan kullanarak doğrulamayı manuel olarak ele almanız gerekir. |
+| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Widget yüklendikten sonra doğrulamayı otomatik başlatır. Kullanıcı etkileşimi veya `startVerification()` gerektirmek için `"false"` olarak ayarlayın veya atlayın. |
+| `show-warning` | `showWarning` | `boolean \| string` | `false` | Widget'ın üzerinde kırmızı bir uyarı banner'ı gösterir. Genellikle gelecekteki hızlı çözücüler için WebAssembly eksikse kullanıcıları uyarmak için kullanılır. |
+| `warning-message` | `warningMessage` | `string` | `"Enable WASM..."` | Uyarı banner'ı için özel mesaj metni. |
+| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Çözme için milisaniye cinsinden isteğe bağlı zaman aşımı. Atlanırsa, çözme otomatik olarak zaman aşımına uğramaz. |
+| `disabled` | `disabled` | `boolean \| string` | `false` | Ayarlandığı sürece kullanıcı etkileşimini ve programlı doğrulamayı devre dışı bırakır. |
+
+## Meydan okuma uç noktası yanıt formatı
+
+`challenge-endpoint`'iniz, widget'ın çözeceği meydan okuma jetonlarını içeren bir JSON gövdesi döndürmelidir. Önerilen yanıt şekli `{ challenges: string[] }`'tir.
+
+<Info>
+Widget, `challenge-endpoint`'ten üç yanıt formatını kabul eder:
+
+1. `{ challenges: string[] }` — önerilen sözleşme
+2. `{ tokens: string[] }` — eski uyumluluk
+3. ham `string[]` — eski uyumluluk
+
+Geçersiz veya karışık tipli jeton dizileri, açık bir widget hata olayı ile hızlı başarısız olur.
+</Info>
+
+## Devre dışı durum davranışı
+
+`disabled`'ı ayarladığınızda (veya `"false"` dışında herhangi bir değer), widget tamamen hareketsiz bir duruma girer. Özellikle:
+
+- Tıklama etkileşimini engeller
+- Klavye etkinleştirmesini engeller
+- `startVerification()`'i bir işlem yapmaz hale getirir
+- `auto-verify`'in başlamasını engeller
+- Widget'ı sekme sırasından kaldırır
+- Erişilebilirlik için `aria-disabled="true"` ayarlar
+
+Sunucunuz bir form işlerken kullanıcıların yeniden göndermesini önlemek için `disabled`'ı kullanın, ardından yanıt geldiğinde temizleyin. İşte bir yükleme bayrağına göre devre dışı prop'unu değiştiren bir React örneği:
+
+```tsx
+<RibauntWidget
+  disabled={isProcessing}
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+/>
+```
+
+## Zorunlu yöntemler (ref aracılığıyla)
+
+Widget'ı programlı olarak kontrol etmek için widget öğesi üzerinde doğrudan yöntemler çağırabilirsiniz. React'te, `RibauntWidgetHandle` kullanarak türlendirilmiş bir ref edinin:
+
+| Yöntem | Açıklama |
+|---|---|
+| `startVerification()` | Çözme akışını programlı olarak başlatın |
+| `reset()` | Widget'ı ilk duruma sıfırlayın |
+| `getState()` | Mevcut widget durum dizesini döndürür |
+
+```tsx
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+const ref = useRef<RibauntWidgetHandle>(null);
+// ...
+ref.current?.startVerification();
+ref.current?.reset();
+const state = ref.current?.getState();
+```
+
+## Yalnızca React proplar
+
+Yukarıdaki özniteliklere ek olarak, React sarmalayıcısı türlendirilmiş geri çağırma propları ve bir `ref` kabul eder. Bunların HTML öznitelik karşılığı yoktur ve tamamen React sarmalayıcısı içinde işlenir:
+
+- `onVerify` — doğrulama başarılı olduğunda tetiklenir
+- `onError` — bir hata oluştuğunda tetiklenir
+- `onStateChange` — widget durumlar arasında geçiş yaptığında tetiklenir
+- `onReady` — widget monte edildikten sonra bir kez tetiklenir
+- `onLoad` — `onReady` için takma ad, geriye dönük uyumluluk için sağlanmıştır
+- `onEvent` — tüm olay türleri için yakala-tüm işleyicisi
+- `ref` — `reset()`, `getState()` ve `startVerification()`'i sunan zorunlu tutamaç
+
+Her geri çağırmanın tüm ayrıntıları, yük türleri ve kullanım örnekleri için [Olaylar referansı](/tr/widget/events) sayfasına bakın.
+
+<Note>
+Tarayıcı çözümü HTTPS veya `http://localhost` gerektirir. Düz bir LAN URL'sinden (örn. `http://192.168.x.x`) yüklemek, Web Crypto API'si kullanılamadığı için başarısız olur.
+</Note>

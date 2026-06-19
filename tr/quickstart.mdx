@@ -1,0 +1,125 @@
+---
+title: "Hızlı Başlangıç: Ribaunt CAPTCHA'yı Beş Dakikada Çalıştırın"
+sidebarTitle: "Hızlı Başlangıç"
+description: "Ribaunt'u kurun, gizli anahtarınızı ayarlayın, meydan okumalar ve doğrulama için iki sunucu uç noktası ekleyin ve tarayıcı widget'ını dakikalar içinde sayfanıza bırakın."
+---
+
+Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonu oluşturmanın adımlarını anlatır: iş kanıtı meydan okumalarını yayınlayan ve doğrulayan iki sunucu uç noktası, artı kullanıcılarınızın etkileşime girdiği bir tarayıcı widget'ı. Sonunda, herhangi bir formun veya API eyleminin önüne ekleyebileceğiniz çalışan bir bot koruma katmanına sahip olacaksınız.
+
+<Steps>
+  <Step title="Ribaunt'u kurun">
+    `ribaunt` paketini projenize ekleyin.
+
+    <CodeGroup>
+      ```bash npm
+      npm install ribaunt
+      ```
+
+      ```bash yarn
+      yarn add ribaunt
+      ```
+
+      ```bash pnpm
+      pnpm add ribaunt
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Gizli anahtarınızı ayarlayın">
+    Ribaunt her meydan okuma jetonunu sizin kontrolünüzdeki bir gizli anahtarla imzalar. Sunucu ortamınıza `RIBAUNT_SECRET` ekleyin — bir `.env` dosyası, barındırma platformunuzun gizli yönetici aracı veya sunucu yapılandırmanızı nasıl yönettiğinize bağlı olarak.
+
+    ```env
+    RIBAUNT_SECRET="replace-with-a-long-random-secret"
+    ```
+
+    <Warning>
+      `RIBAUNT_SECRET`'i asla tarayıcıya açmayın. Next.js'te, başına `NEXT_PUBLIC_` **eklemeyin** — bu, gizli anahtarı istemci paketinize gömerek herkesin geçerli meydan okuma jetonları üretmesine olanak tanır.
+    </Warning>
+  </Step>
+
+  <Step title="Sunucu uç noktaları oluşturun">
+    İki uç noktaya ihtiyacınız var: biri meydan okumalar yayınlar, diğeri çözümleri doğrular. İşte `ribaunt`'tan `createChallenge` ve `verifySolution` fonksiyonlarını kullanan eksiksiz bir Express örneği.
+
+    ```ts
+    import 'dotenv/config';
+    import express from 'express';
+    import { createChallenge, verifySolution } from 'ribaunt';
+
+    const app = express();
+    app.use(express.json());
+
+    // Tarayıcı widget'ına imzalı JWT meydan okumaları yayınlar
+    app.get('/api/captcha/challenge', (_req, res) => {
+      const challenges = createChallenge(5, 4, 120);
+      // createChallenge(difficulty, amount, ttlSeconds)
+      res.json({ challenges });
+    });
+
+    // Tarayıcı widget'ı tarafından gönderilen nonce'ları doğrular
+    app.post('/api/captcha/verify', async (req, res) => {
+      const { tokens, solutions } = req.body;
+      const valid = await verifySolution(tokens, solutions);
+
+      if (!valid) {
+        return res.status(400).json({ success: false, error: 'Invalid CAPTCHA solution' });
+      }
+
+      return res.json({ success: true });
+    });
+
+    app.listen(3000);
+    ```
+
+    `createChallenge` üç parametre alır:
+
+    | Parametre | Varsayılan | Açıklama |
+    | --- | --- | --- |
+    | `difficulty` | `5` | SHA-256 karmasında gerekli olan baştaki sıfırlar. Daha yüksek değerler çözüm süresini artırır. |
+    | `amount` | `4` | Oluşturulacak meydan okuma jetonu sayısı. |
+    | `ttlSeconds` | `30` | Meydan okuma jetonunun saniye cinsinden ömrü. |
+
+    `verifySolution` bir `Promise<boolean>` döndürür. JWT imzasını doğrular, sona erme süresini kontrol eder, nonce'un gerekli baştaki sıfırları içeren bir karma ürettiğini onaylar ve varsayılan olarak işlem yerel depolaması kullanarak yeniden oynatmayı engeller.
+  </Step>
+
+  <Step title="Widget'ı ön yüzünüze ekleyin">
+    Ribaunt web bileşeni betiğini dahil edin ve `<ribaunt-widget>` öğesini CAPTCHA koruması istediğiniz her yere yerleştirin. Widget, sunucunuzdan bir meydan okuma getirir, arka planda çözer ve `auto-verify="true"` ayarlandığında doğrulama uç noktanızı otomatik olarak çağırır.
+
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+
+    <ribaunt-widget
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+
+    <script>
+      const widget = document.querySelector('ribaunt-widget');
+
+      widget.addEventListener('verify', (e) => {
+        console.log('Verified!', e.detail.solutions);
+      });
+    </script>
+    ```
+
+    React kullanıyorsanız, web bileşenini doğrudan içe aktarmak yerine sarmalayıcı bileşeni içe aktarın. Tam örnek için [React Entegrasyonu](/tr/integrations/react) sayfasına bakın.
+  </Step>
+</Steps>
+
+<Note>
+  Widget, meydan okuma çözüldüğünde bir `verify` olayı yayar. Bunu, gönderme düğmenizi etkinleştirmek veya form göndermeyi sürdürmek için kullanın. Doğrulama başarısız olursa karşılık gelen bir `error` olayı tetiklenir; bu da kullanıcıya geri bildirim gösterme şansı verir.
+</Note>
+
+## Sonraki adımlar
+
+<CardGroup cols={2}>
+  <Card title="Widget yapılandırması" icon="sliders" href="/tr/widget/configuration">
+    Tüm widget özniteliklerini inceleyin — zaman aşımları, tema, uyarı banner'ları ve `disabled` durumu.
+  </Card>
+  <Card title="React entegrasyonu" icon="react" href="/tr/integrations/react">
+    React ve Next.js App Router içinde tam prop desteğiyle `ribaunt/widget-react` sarmalayıcısını kullanın.
+  </Card>
+  <Card title="Express sunucu örneği" icon="server" href="/tr/server/express">
+    Yeniden oynatma koruması ve yapılandırılmış uyarı geri çağırmalarıyla üretime hazır bir Express sunucu kurulumu.
+  </Card>
+</CardGroup>

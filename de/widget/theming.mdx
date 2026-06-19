@@ -1,0 +1,92 @@
+---
+title: "Erscheinungsbild des Ribaunt-Widgets mit CSS-Variablen anpassen"
+sidebarTitle: "Theming"
+description: "Gestalten Sie das ribaunt-widget mit CSS-Custom-Properties. Behandelt alle Variablen für Farben, Abmessungen, Ränder, Spinner und Dark-Mode-Implementierung."
+---
+
+Das `<ribaunt-widget>` verwendet Shadow DOM zur Stil-Kapselung, was bedeutet, dass externe Stylesheets nicht versehentlich in die Interna des Widgets durchsickern können. Sie können dennoch das gesamte Erscheinungsbild anpassen, indem Sie CSS-Custom-Properties (Variablen) auf dem `ribaunt-widget`-Host-Element setzen — Shadow DOM erbt diese von außen, sodass Ihre Überschreibungen sauber durchfließen.
+
+## Schnellstart
+
+Die folgenden vier Variablen reichen für ein minimales dunkles Theme aus:
+
+```css
+ribaunt-widget {
+  --ribaunt-background: #1e1e1e;
+  --ribaunt-border-color: #444;
+  --ribaunt-color: #f0f0f0;
+  --ribaunt-spinner-color: #f0f0f0;
+}
+```
+
+## Referenz der CSS-Variablen
+
+| Variable | Standard | Beschreibung |
+|---|---|---|
+| `--ribaunt-background` | `#fdfdfd` | Hintergrund des Widget-Containers |
+| `--ribaunt-border-color` | `#dddddd8f` | Rahmenfarbe des Widgets |
+| `--ribaunt-border-radius` | `14px` | Rahmenradius des Widgets |
+| `--ribaunt-color` | `#212121` | Textfarbe |
+| `--ribaunt-widget-width` | `230px` | Widget-Breite |
+| `--ribaunt-widget-height` | `58px` | Widget-Höhe |
+| `--ribaunt-widget-padding` | `14px` | Innenabstand des Widgets |
+| `--ribaunt-gap` | `15px` | Abstand zwischen Checkbox und Text |
+| `--ribaunt-checkbox-size` | `25px` | Breite und Höhe der Checkbox |
+| `--ribaunt-checkbox-background` | `#fafafa91` | Hintergrundfarbe der Checkbox |
+| `--ribaunt-checkbox-border` | `1px solid #aaaaaad1` | Rahmen der Checkbox |
+| `--ribaunt-checkbox-border-radius` | `6px` | Rahmenradius der Checkbox |
+| `--ribaunt-checkbox-margin` | `2px` | Oberer/unterer Außenabstand der Checkbox |
+| `--ribaunt-spinner-color` | `#000` | Farbe des aktiven Spinner-Segments |
+| `--ribaunt-spinner-background-color` | `#eee` | Farbe der inaktiven Spinner-Spur |
+| `--ribaunt-spinner-thickness` | `5px` | Stärke des Spinner-Rings |
+| `--ribaunt-checkmark` | Eingebautes grünes Häkchen | SVG-URL für das Erfolgs-Häkchen |
+| `--ribaunt-error-cross` | Eingebautes rotes Warnsymbol | SVG-URL für das Fehler-Kreuz-Symbol |
+| `--ribaunt-logo-color` | `#666` | Farbe des Ribaunt-Logos |
+| `--ribaunt-font` | System-Sans-Serif | Schriftart-Stack |
+
+## Dark Mode
+
+Ribaunt erzwingt keinen automatischen Dark Mode. Stattdessen binden Sie ihn selbst an — entweder über eine Media Query, die auf die Betriebssystem-Präferenz reagiert, oder über eine CSS-Klasse, die Ihre Anwendung steuert.
+
+### Verwendung einer Media Query
+
+```css
+@media (prefers-color-scheme: dark) {
+  ribaunt-widget {
+    --ribaunt-background: #2d2d2d;
+    --ribaunt-border-color: #555;
+    --ribaunt-color: #ffffff;
+    --ribaunt-checkbox-background: #444;
+    --ribaunt-spinner-color: #ffffff;
+    --ribaunt-spinner-background-color: #333;
+    --ribaunt-logo-color: #cccccc;
+  }
+}
+```
+
+### Verwendung einer CSS-Klasse
+
+Wenn Ihre App einen eigenen Dark-Mode-Schalter hat, der einem übergeordneten Element eine Klasse hinzufügt (z. B. `<html class="dark">`), können Sie die Überschreibungen auf diese Klasse beschränken:
+
+```css
+.dark ribaunt-widget {
+  --ribaunt-background: #111;
+  --ribaunt-color: #eee;
+}
+```
+
+## Benutzerdefinierte Abmessungen
+
+Sie können die Größe des Widgets an Ihr Formular-Layout anpassen, indem Sie die Dimensionsvariablen überschreiben. Das folgende Beispiel erstellt eine `.large`-Variante:
+
+```css
+ribaunt-widget.large {
+  --ribaunt-widget-width: 300px;
+  --ribaunt-widget-height: 72px;
+  --ribaunt-checkbox-size: 32px;
+}
+```
+
+<Tip>
+Standardmäßige CSS-Eigenschaften wie `margin`, `box-shadow` und `display` funktionieren direkt auf dem `ribaunt-widget`-Host-Element, da es ein Inline-Block-Custom-Element ist. Sie benötigen keinen Wrapper-`<div>`, nur um Abstände oder Schatten anzuwenden.
+</Tip>

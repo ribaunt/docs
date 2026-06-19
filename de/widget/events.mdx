@@ -1,0 +1,99 @@
+---
+title: "Ribaunt-Widget-Events: verify, error und state-change"
+sidebarTitle: "Events"
+description: "Referenz für alle vom ribaunt-widget ausgelösten Events: verify, error und state-change. Enthält React-Callback-Prop-Äquivalente und Event-Detail-Typen."
+---
+
+Das `<ribaunt-widget>` löst drei benutzerdefinierte DOM-Events aus — `verify`, `error` und `state-change` — die Sie mit `addEventListener` auf dem Element abhören können. Verwenden Sie in React stattdessen die typisierten Callback-Props; der Wrapper richtet die Listener automatisch ein und entfernt sie wieder.
+
+## `verify`
+
+Das `verify`-Event wird ausgelöst, wenn das Widget alle Challenges erfolgreich löst und — wenn Sie einen `verify-endpoint` angegeben haben — der Server bestätigt, dass die Lösungen gültig sind. Wenn kein `verify-endpoint` gesetzt ist, wird das Event ausgelöst, sobald der lokale Proof-of-Work abgeschlossen ist.
+
+**Event-Typ:** `CustomEvent<{ solutions: ChallengeSolution[] }>`
+
+Wobei `ChallengeSolution = { nonce: string; hash: string }`.
+
+```js
+widget.addEventListener('verify', (e) => {
+  const { solutions } = e.detail;
+  console.log('Verified! Solutions:', solutions);
+  // Enable submit button, proceed with form, etc.
+});
+```
+
+**React-Äquivalent:** `onVerify={(detail) => ...}`
+
+## `error`
+
+Das `error`-Event wird ausgelöst, wenn das Widget zu irgendeinem Zeitpunkt auf einen Fehler stößt — beim Abrufen von Tokens von Ihrem Challenge-Endpunkt, beim Ausführen des Proof-of-Work-Solvers oder beim Erhalten einer Nicht-OK-Antwort von Ihrem Verify-Endpunkt.
+
+**Event-Typ:** `CustomEvent<{ error: string; timeout?: boolean }>`
+
+```js
+widget.addEventListener('error', (e) => {
+  const { error, timeout } = e.detail;
+  if (timeout) {
+    console.warn('Timed out:', error);
+  } else {
+    console.error('CAPTCHA failed:', error);
+  }
+});
+```
+
+**React-Äquivalent:** `onError={(detail) => ...}`
+
+<Note>
+Das Feld `timeout` ist im Event-Detail nur vorhanden, wenn `solve-timeout` konfiguriert ist und die Solving-Dauer dieses Limit überschreitet. Wenn vorhanden, ist es immer `true`.
+</Note>
+
+## `state-change`
+
+Das `state-change`-Event wird jedes Mal ausgelöst, wenn das Widget zwischen internen Zuständen wechselt. Sie können dies verwenden, um den visuellen Zustand des Widgets in Ihrer eigenen UI widerzuspiegeln — zum Beispiel, um einen Absende-Button zu deaktivieren, während die Verifizierung läuft.
+
+**Event-Typ:** `CustomEvent<{ state: 'initial' | 'verifying' | 'done' | 'error' }>`
+
+```js
+widget.addEventListener('state-change', (e) => {
+  const { state } = e.detail;
+  // 'initial' | 'verifying' | 'done' | 'error'
+});
+```
+
+**React-Äquivalent:** `onStateChange={(detail) => ...}`
+
+## React-Callback-Props
+
+Wenn Sie den React-Wrapper verwenden, können Sie alle Callbacks direkt als Props übergeben. Der Wrapper bewahrt stabile Event-Listener-Referenzen über Re-Renders hinweg, sodass Ihre Callbacks immer die aktuellsten Closure-Werte erhalten:
+
+```tsx
+<RibauntWidget
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+  onVerify={(detail) => console.log('Solutions:', detail.solutions)}
+  onError={(detail) => console.error('Error:', detail.error)}
+  onStateChange={(detail) => console.log('State:', detail.state)}
+  onReady={(detail) => console.log('Ready with state:', detail.state)}
+  onLoad={(detail) => console.log('Widget loaded:', detail.state)}
+  onEvent={(type, detail) => console.log('Event:', type, detail)}
+/>
+```
+
+## Nur in React verfügbare Events
+
+Zwei zusätzliche Callbacks sind im React-Wrapper verfügbar, die kein entsprechendes benutzerdefiniertes DOM-Event in der Web-Komponente haben:
+
+- **`onReady`** — wird einmal nach dem Mounten des Widgets ausgelöst, wobei der initiale Widget-Zustand in der Detail-Payload enthalten ist. Verwenden Sie dies, um zu erfahren, wann das Widget interaktionsbereit ist.
+- **`onLoad`** — funktional identisch mit `onReady`. Wird als Alias für die Abwärtskompatibilität bereitgestellt, wenn Sie `onLoad` bereits in einer früheren Version verwendet haben.
+- **`onEvent`** — ein Catch-All-Handler, der für jeden Event-Typ (`'verify'`, `'error'`, `'state-change'` und `'ready'`) zusammen mit dem Detail-Objekt des Events ausgelöst wird. Verwenden Sie dies, wenn Sie alle Widget-Events an einer einzigen Stelle behandeln oder protokollieren möchten.
+
+## Widget-Zustände
+
+Das Widget durchläuft während seines Lebenszyklus eine definierte Menge von Zuständen. Sie begegnen diesen Zustandszeichenketten in `state-change`-Events und im Rückgabewert von `getState()`:
+
+| Zustand | Beschreibung |
+|---|---|
+| `initial` | Widget ist geladen, wartet auf Nutzer-Klick oder Auto-Verify |
+| `verifying` | Solver läuft (Proof-of-Work in Bearbeitung) |
+| `done` | Challenge erfolgreich gelöst und verifiziert |
+| `error` | Während Abrufen, Lösen oder Verifizieren ist ein Fehler aufgetreten |

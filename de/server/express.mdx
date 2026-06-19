@@ -1,0 +1,144 @@
+---
+title: "Ribaunt-PoW-CAPTCHA in einen Express.js-Server integrieren"
+sidebarTitle: "Express"
+description: "Richten Sie Endpunkte zur Challenge-Generierung und Lösungsverifizierung in einem Express.js-Server mit den Funktionen createChallenge und verifySolution von Ribaunt ein."
+---
+
+Diese Anleitung führt Sie durch das Hinzufügen von zwei Ribaunt-CAPTCHA-Endpunkten zu einem Express.js-Server: einen, der signierte Proof-of-Work-Challenges an den Client ausstellt, und einen, der die gelösten Lösungen überprüft, bevor Sie der Anfrage vertrauen. Beide Endpunkte sind zustandslos — Ribaunt kodiert den gesamten Challenge-Zustand in einem signierten JWT, sodass keine Datenbank erforderlich ist.
+
+## Voraussetzungen
+
+- Node.js 18 oder höher
+- `express` und `ribaunt` in Ihrem Projekt installiert
+- Eine Umgebungsvariable `RIBAUNT_SECRET`, die auf eine starke Zufallszeichenfolge gesetzt ist
+
+<Steps>
+
+### Abhängigkeiten installieren
+
+Installieren Sie Express und Ribaunt zusammen, falls Sie dies noch nicht getan haben:
+
+```bash
+npm install express ribaunt
+```
+
+### Challenge-Endpunkt erstellen
+
+Fügen Sie einen `GET /api/captcha/challenge`-Handler hinzu, der `createChallenge` aufruft und die Tokens an den Client zurückgibt.
+
+```ts
+import { createChallenge } from 'ribaunt';
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+```
+
+`createChallenge` akzeptiert drei Positionsargumente:
+
+| Parameter    | Wert  | Bedeutung                                                  |
+| ------------ | ----- | ---------------------------------------------------------- |
+| `difficulty` | `5`   | Anzahl der im SHA-256-Hash erforderlichen führenden Nullen |
+| `amount`     | `4`   | Anzahl der einzelnen zu generierenden Challenge-Tokens     |
+| `ttlSeconds` | `120` | Sekunden, bis jedes Token abläuft (im JWT kodiert)         |
+
+Die Funktion gibt ein Array signierter JWT-Zeichenketten zurück. Senden Sie das gesamte Array als `{ challenges }` an den Client zurück.
+
+### Verify-Endpunkt erstellen
+
+Fügen Sie einen `POST /api/captcha/verify`-Handler hinzu, der `tokens` und `solutions` aus dem Request-Body liest und dann `verifySolution` aufruft.
+
+```ts
+import { verifySolution } from 'ribaunt';
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+```
+
+`verifySolution` ist asynchron und gibt ein `Promise<boolean>` zurück. Es validiert die JWT-Signatur, prüft, ob der Hash die erforderliche Schwierigkeit erfüllt, bestätigt, dass das Token noch nicht abgelaufen ist, und speichert (standardmäßig) die `jti` des Tokens in einem prozesslokalen Store, um Replays zu blockieren.
+
+### Vollständiges Server-Beispiel
+
+Die folgende `server.ts`-Datei kombiniert beide Endpunkte mit Standard-Express-Boilerplate:
+
+```ts
+import 'dotenv/config';
+import express from 'express';
+import { createChallenge, verifySolution } from 'ribaunt';
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(express.json());
+
+if (!process.env.RIBAUNT_SECRET) {
+  console.warn('WARNING: RIBAUNT_SECRET environment variable is not set!');
+}
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+```
+
+</Steps>
+
+## Best Practices
+
+- **Begrenzen Sie die Rate des Challenge-Endpunkts.** Verwenden Sie [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit), um zu begrenzen, wie viele Challenges eine einzelne IP pro Minute anfordern kann. Ohne dies kann ein Angreifer Tokens für Offline-Brute-Forcing sammeln.
+- **Verknüpfen Sie die Verifizierung mit einer Session.** Geben Sie nach einem erfolgreichen `verifySolution`-Aufruf ein signiertes JWT zurück oder setzen Sie ein HTTP-Only-Cookie. Verlangen Sie dieses Token an Ihrem geschützten Formularübermittlungs-Endpunkt, damit Sie wissen, dass die CAPTCHA-Lösung von demselben Nutzer kam, der die nachgelagerte Anfrage stellt.
+- **Validieren Sie Eingaben vor dem Aufruf von `createChallenge`.** Wenn `difficulty`, `amount` oder `ttlSeconds` aus der Konfiguration oder den Anfragedaten stammen, prüfen Sie zuerst, ob es sich um positive, endliche Ganzzahlen handelt — ungültige Werte führen zu einer Exception.
+- **Verwenden Sie `replayPrevention: 'remote'` für Multi-Instance- oder Serverless-Bereitstellungen.** Der Standard-Store `'local'` ist pro Prozess, sodass er Replays über separate Node.js-Prozesse hinweg nicht erkennen kann. Übergeben Sie einen verteilten Store-Adapter (z. B. mit Redis im Hintergrund) und setzen Sie `replayPrevention: 'remote'` in den Optionen Ihres `verifySolution`-Aufrufs.
+- **Verwenden Sie `onWarning` für Telemetrie.** Der `onWarning`-Callback empfängt ein strukturiertes `VerifyWarning`-Objekt mit einem typisierten `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'` etc.) und einer für Menschen lesbaren `message`. Verbinden Sie ihn mit Ihrer Observability-Pipeline, ohne ausführliche Debug-Logs in der Produktion zu aktivieren.
+
+<Warning>
+  Validieren Sie alle vom Nutzer oder von der Konfiguration kontrollierten Werte für `difficulty`, `amount` und `ttlSeconds`, bevor Sie sie an `createChallenge()` übergeben. Ungültige Werte führen zu einer Exception.
+</Warning>

@@ -1,0 +1,144 @@
+---
+title: "Ribaunt PoW CAPTCHA'yı Express.js Sunucusuyla Entegre Edin"
+sidebarTitle: "Express"
+description: "Ribaunt'un createChallenge ve verifySolution fonksiyonlarını kullanarak bir Express.js sunucusunda meydan okuma üretimi ve çözüm doğrulama uç noktaları kurun."
+---
+
+Bu kılavuz, bir Express.js sunucusuna iki Ribaunt CAPTCHA uç noktası eklemenin adımlarını anlatır: biri istemciye imzalı iş kanıtı meydan okumaları yayınlar, diğeri ise isteği güvenmeden önce çözülmüş çözümleri doğrular. Her iki uç nokta da durumsuzdur — Ribaunt tüm meydan okuma durumunu imzalı bir JWT içinde kodlar, bu nedenle veritabanı gerekmez.
+
+## Ön koşullar
+
+- Node.js 18 veya üstü
+- Projenizde kurulu `express` ve `ribaunt`
+- Güçlü bir rastgele dizeye ayarlanmış bir `RIBAUNT_SECRET` ortam değişkeni
+
+<Steps>
+
+### Bağımlılıkları kurun
+
+Henüz kurmadıysanız Express ve Ribaunt'u birlikte kurun:
+
+```bash
+npm install express ribaunt
+```
+
+### Meydan okuma uç noktasını oluşturun
+
+`createChallenge` çağıran ve jetonları istemciye döndüren bir `GET /api/captcha/challenge` işleyicisi ekleyin.
+
+```ts
+import { createChallenge } from 'ribaunt';
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+```
+
+`createChallenge` üç konumsal argüman alır:
+
+| Parametre    | Değer | Anlamı                                                  |
+| ------------ | ----- | -------------------------------------------------------- |
+| `difficulty` | `5`   | SHA-256 karmasında gerekli baştaki sıfır sayısı    |
+| `amount`     | `4`   | Üretilecek bireysel meydan okuma jetonu sayısı       |
+| `ttlSeconds` | `120` | Her jetonun süresi dolana kadar geçen saniye (JWT içinde kodlanmış)   |
+
+Fonksiyon imzalı JWT dizelerinden oluşan bir dizi döndürür. Tüm diziyi `{ challenges }` olarak istemciye geri gönderin.
+
+### Doğrulama uç noktasını oluşturun
+
+İstek gövdesinden `tokens` ve `solutions` okuyan ve ardından `verifySolution` çağıran bir `POST /api/captcha/verify` işleyicisi ekleyin.
+
+```ts
+import { verifySolution } from 'ribaunt';
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+```
+
+`verifySolution` asenkrondur ve bir `Promise<boolean>` döndürür. JWT imzasını doğrular, karmanın gerekli zorluğu karşıladığını kontrol eder, jetonun süresinin dolup dolmadığını onaylar ve (varsayılan olarak) yeniden oynatmaları engellemek için jetonun `jti`'sini işlem yerel bir depoda kaydeder.
+
+### Tam sunucu örneği
+
+Aşağıdaki `server.ts` dosyası her iki uç noktayı standart Express şablon koduyla birleştirir:
+
+```ts
+import 'dotenv/config';
+import express from 'express';
+import { createChallenge, verifySolution } from 'ribaunt';
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(express.json());
+
+if (!process.env.RIBAUNT_SECRET) {
+  console.warn('WARNING: RIBAUNT_SECRET environment variable is not set!');
+}
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+```
+
+</Steps>
+
+## En iyi uygulamalar
+
+- **Meydan okuma uç noktasını hız sınırına alın.** Tek bir IP'nin dakikada kaç meydan okuma talep edebileceğini sınırlamak için [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit) kullanın. Bu olmadan, bir saldırgan çevrimdışı kaba kuvvet için jeton biriktirebilir.
+- **Doğrulamayı bir oturuma bağlayın.** Başarılı bir `verifySolution` çağrısından sonra imzalı bir JWT döndürün veya yalnızca HTTP çerezi ayarlayın. CAPTCHA'nın aşağı akış isteğini yapan aynı kullanıcı tarafından çözüldüğünü bilmek için korumalı form gönderim uç noktanızda bu jetonu zorunlu kılın.
+- **`createChallenge` çağırmadan önce girdileri doğrulayın.** `difficulty`, `amount` veya `ttlSeconds` yapılandırmadan veya istek verilerinden geliyorsa, önce pozitif sonlu tamsayılar olduklarını kontrol edin — geçersiz değerler hata fırlatır.
+- **Çok örnekli veya sunucusuz dağıtımlar için `replayPrevention: 'remote'` kullanın.** Varsayılan `'local'` deposu işlem başınadır, bu nedenle ayrı Node.js işlemleri arasındaki yeniden oynatmaları algılayamaz. Dağıtık bir depo adaptörü (örn. Redis tabanlı) iletin ve `verifySolution` seçeneklerinizde `replayPrevention: 'remote'` ayarlayın.
+- **Telemetri için `onWarning` kullanın.** `onWarning` geri çağırması, türlendirilmiş bir `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'` vb.) ve okunabilir bir `message` içeren yapılandırılmış bir `VerifyWarning` nesnesi alır. Üretimde ayrıntılı hata ayıklama günlüklerini etkinleştirmeden gözlemlenebilirlik hattınıza bağlayın.
+
+<Warning>
+  Kullanıcı veya yapılandırma kontrollü `difficulty`, `amount` ve `ttlSeconds` değerlerini `createChallenge()`'e geçirmeden önce doğrulayın. Geçersiz değerler hata fırlatır.
+</Warning>

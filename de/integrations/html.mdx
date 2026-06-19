@@ -1,0 +1,157 @@
+---
+title: "Ribaunt-CAPTCHA zu reinen HTML-Seiten ohne Framework hinzufügen"
+sidebarTitle: "HTML / Vanilla JS"
+description: "Betten Sie die Ribaunt-CAPTCHA-Web-Komponente in jede HTML-Seite ohne Framework ein. Hören Sie auf verify- und error-Events, um die Formularübermittlung zu steuern."
+---
+
+`<ribaunt-widget>` ist eine standardmäßige Web-Komponente, die in jedem modernen Browser ohne Framework funktioniert. Sie laden ein einziges ES-Modul-Skript, fügen das Element in Ihre Markup-Datei ein und verdrahten ein paar Event-Listener — kein Build-Schritt erforderlich.
+
+<Note>
+  Das Widget basiert auf der Web Crypto API, die nur in einem **sicheren Kontext** verfügbar ist. Verwenden Sie `https://` in der Produktion und `http://localhost` während der lokalen Entwicklung. Einfache lokale Netzwerk-URLs wie `http://192.168.x.x` funktionieren nicht.
+</Note>
+
+## Schritte
+
+<Steps>
+  ### Widget-Skript laden
+
+  Fügen Sie das ES-Modul des Widgets als `<script type="module">`-Tag in Ihrem `<head>` ein. Passen Sie den Pfad an, je nachdem, wo Sie Ihre `node_modules` oder die gebündelte Ausgabe bereitstellen.
+
+  ```html
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+  ```
+
+  ### Das Element `<ribaunt-widget>` hinzufügen
+
+  Platzieren Sie das Element in Ihrem Formular. Verwenden Sie die Attribute `challenge-endpoint`, `verify-endpoint` und `auto-verify` zur Konfiguration.
+
+  ```html
+  <ribaunt-widget
+    id="captcha"
+    challenge-endpoint="/api/captcha/challenge"
+    verify-endpoint="/api/captcha/verify"
+    auto-verify="true"
+    solve-timeout="15000"
+  ></ribaunt-widget>
+  ```
+
+  ### Auf das `verify`-Event hören
+
+  Wenn das Widget den Nutzer erfolgreich verifiziert, löst es ein `verify`-Event aus. Verwenden Sie es, um Ihren Absende-Button zu aktivieren oder mit Ihrer Formularlogik fortzufahren.
+
+  ```html
+  <script>
+    document.getElementById('captcha').addEventListener('verify', (e) => {
+      console.log('Verified!', e.detail.solutions);
+      document.getElementById('submit-btn').disabled = false;
+    });
+  </script>
+  ```
+
+  ### Das `error`-Event behandeln
+
+  Wenn die Verifizierung fehlschlägt — einschließlich eines Solve-Timeouts — löst das Widget ein `error`-Event aus. Lassen Sie den Absende-Button deaktiviert und informieren Sie den Nutzer.
+
+  ```html
+  <script>
+    document.getElementById('captcha').addEventListener('error', (e) => {
+      console.error('CAPTCHA failed:', e.detail.error);
+      if (e.detail.timeout) {
+        console.warn('Solving timed out — please try again.');
+      }
+      document.getElementById('submit-btn').disabled = true;
+    });
+  </script>
+  ```
+</Steps>
+
+## Vollständiges Beispiel
+
+Der folgende Ausschnitt führt alle vier Schritte zu einer einzigen, eigenständigen HTML-Seite zusammen.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Secure Form</title>
+  <!-- Adjust the path to match your static file hosting -->
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+</head>
+<body>
+  <form id="secure-form" action="/api/submit" method="POST">
+    <h2>Please verify you are human</h2>
+
+    <ribaunt-widget
+      id="captcha"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      solve-timeout="15000"
+    ></ribaunt-widget>
+
+    <!-- Keep disabled until the verify event fires -->
+    <button type="submit" id="submit-btn" disabled>Submit</button>
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const widget    = document.getElementById('captcha');
+      const submitBtn = document.getElementById('submit-btn');
+
+      widget.addEventListener('verify', (e) => {
+        console.log('User verified!', e.detail.solutions);
+        submitBtn.disabled = false;
+      });
+
+      widget.addEventListener('error', (e) => {
+        console.error('CAPTCHA failed:', e.detail.error);
+        if (e.detail.timeout) {
+          console.warn('Solving timed out — try again.');
+        }
+        submitBtn.disabled = true;
+      });
+
+      // Optional: react to intermediate state transitions
+      widget.addEventListener('state-change', (e) => {
+        console.log('Widget state:', e.detail.state);
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+## Gestaltung des Widgets
+
+Die Interna des Widgets sind in einem Shadow DOM gekapselt, sodass standardmäßige Nachfahren-Selektoren sie nicht erreichen können. Sie können jedoch CSS-Custom-Properties überschreiben, die auf das Host-Element beschränkt sind.
+
+```css
+#captcha {
+  /* Override widget theme variables */
+  --ribaunt-background: #f0f0f0;
+  --ribaunt-border-color: #ccc;
+
+  /* Standard CSS applies to the host element itself */
+  margin: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+## Attributreferenz
+
+Die am häufigsten verwendeten Attribute sind unten aufgeführt. Die vollständige Liste der Attribute, akzeptierten Werte und Standardwerte finden Sie unter [Widget-Konfiguration](/de/widget/configuration).
+
+| Attribut | Beschreibung |
+|---|---|
+| `challenge-endpoint` | URL, von der das Widget Challenges abruft. |
+| `verify-endpoint` | URL, an die das Widget Lösungen sendet. |
+| `auto-verify` | Wenn vorhanden, beginnt das Widget unmittelbar nach dem Laden mit dem Lösen, ohne dass ein Klick erforderlich ist. |
+| `show-warning` | Wenn vorhanden, wird über dem Widget ein Warnbanner angezeigt. |
+| `warning-message` | Benutzerdefinierter Text für das Warnbanner, das angezeigt wird, wenn `show-warning` gesetzt ist. |
+| `solve-timeout` | Maximale Millisekunden, die zum Lösen erlaubt sind, bevor ein `error`-Event ausgelöst wird. Weglassen, um den Timeout zu deaktivieren. |
+| `disabled` | Blockiert jede Nutzerinteraktion **und** programmatische `startVerification()`-Aufrufe. |
+
+<Note>
+  Ein `disabled`-Widget startet auch keine Verifizierung über `auto-verify`. Entfernen Sie das `disabled`-Attribut, bevor Sie erwarten, dass das Widget läuft.
+</Note>

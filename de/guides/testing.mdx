@@ -1,0 +1,101 @@
+---
+title: "Ihre Ribaunt-CAPTCHA-Integration End-to-End testen"
+sidebarTitle: "Tests"
+description: "Erfahren Sie, wie Sie Ihre Ribaunt-CAPTCHA-Integration mit solveChallenge für End-to-End-Abläufe testen und das Widget in Unit-Tests umgehen können."
+---
+
+Ribaunt stellt `solveChallenge()` bereit — einen synchronen, serverseitigen Solver —, der es einfach macht, automatisierte Tests für Ihre Challenge- und Verify-Endpunkte ohne Browser zu schreiben. Anstatt einen Headless-Browser hochzufahren oder den internen Zustand zu mocken, können Sie den vollständigen Challenge → Solve → Verify-Zyklus direkt aus Ihrer Test-Suite steuern.
+
+## Verwendung von solveChallenge in Tests
+
+`solveChallenge` führt denselben Proof-of-Work-Algorithmus aus wie der Browser, jedoch synchron und in Node.js. Sie können eine Challenge auf Ihrem Server generieren, sie wie ein Client lösen und das Ergebnis dann in `verifySolution` einspeisen — alles innerhalb eines einzigen Tests.
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Generate a challenge (as your server would)
+const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
+
+// Solve it (as the browser would)
+const solutions = solveChallenge(tokens);
+
+// Verify the solution (as your verify endpoint would)
+const valid = await verifySolution(tokens, solutions);
+console.assert(valid === true);
+```
+
+<Tip>
+  Verwenden Sie in Tests eine niedrige Schwierigkeit (3–4), um sie schnell zu halten. Eine höhere Schwierigkeit verlangsamt CPU-gebundene Tests. Schwierigkeit 5 ist für die Produktion in Ordnung, verlangsamt Test-Suites aber spürbar.
+</Tip>
+
+## Tests mit Timeout-Schutzgrenzen
+
+Wenn Sie ein Sicherheitsnetz gegen einen außer Kontrolle geratenen Solver in CI benötigen, übergeben Sie Schutzoptionen an `solveChallenge`. Sie können die Wanduhrzeit, die Anzahl der Hash-Versuche oder beides begrenzen.
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,    // Give up after 2 seconds
+  maxIterations: 500_000, // Or after 500k attempts
+});
+```
+
+Wenn eine der Schutzgrenzen erreicht wird, gibt `solveChallenge` für dieses Token `undefined` zurück. Ihr Test sollte sicherstellen, dass der Rückgabewert definiert ist, bevor er an `verifySolution` übergeben wird.
+
+## Replay-Schutz testen
+
+Der Standardmodus `local` von Ribaunt verhindert, dass ein Token innerhalb desselben Prozesses mehr als einmal verifiziert wird. Sie können dieses Verhalten direkt in Ihren Tests bestätigen, indem Sie dieselbe Lösung zweimal einreichen.
+
+```ts
+const tokens = createChallenge(3, 2, 30);
+const solutions = solveChallenge(tokens);
+
+const first = await verifySolution(tokens, solutions);
+console.assert(first === true);  // Passes
+
+const second = await verifySolution(tokens, solutions);
+console.assert(second === false); // Rejected — replay detected
+```
+
+Der zweite Aufruf gibt `false` zurück, weil die Challenge-JTIs bei der ersten Verwendung verbraucht werden.
+
+## Tests mit deaktiviertem Replay-Schutz
+
+Einige Unit-Tests müssen dieselben Tokens über mehrere Assertions hinweg wiederverwenden — zum Beispiel, um zu testen, dass eine gültige Lösung Ihre Geschäftslogik immer passiert, unabhängig vom Replay-Zustand. Sie können den Replay-Schutz für einen einzelnen `verifySolution`-Aufruf deaktivieren.
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'disabled',
+});
+```
+
+<Note>
+  Verwenden Sie `replayPrevention: 'disabled'` nur in Tests. Deaktivieren Sie den Replay-Schutz niemals in Ihrem produktiven Verify-Endpunkt, da Angreifer dadurch abgefangene Lösungen wiederverwenden können.
+</Note>
+
+## Verifizierungs-Warnungen erfassen
+
+Wenn Sie behaupten möchten, *warum* eine Verifizierung fehlgeschlagen ist — nicht nur, dass sie `false` zurückgegeben hat — verwenden Sie den `onWarning`-Callback. Dies ist besonders nützlich, um Grenzfälle wie abgelaufene Tokens oder ungültige Lösungen zu testen.
+
+```ts
+const warnings: string[] = [];
+
+const valid = await verifySolution(tokens, badSolutions, {
+  onWarning: (w) => warnings.push(w.reason),
+});
+
+// warnings will contain 'invalid-solution' etc.
+```
+
+Das Feld `reason` im Warnobjekt kann einen der folgenden Werte annehmen:
+
+| Reason | Wann er ausgelöst wird |
+|---|---|
+| `invalid-token` | Das JWT ist fehlerhaft, manipuliert oder verwendet ein unbekanntes Geheimnis |
+| `expired-token` | Die TTL der Challenge ist abgelaufen, bevor die Lösung eingereicht wurde |
+| `invalid-solution` | Die eingereichte Nonce erzeugt keinen Hash mit den erforderlichen führenden Nullen |
+| `replay-detected` | Dieselbe Token-JTI wurde bereits vom Replay-Store verbraucht |
+| `configuration-error` | Eine erforderliche Option (z. B. `replayStore`) fehlt oder ist falsch konfiguriert |
+
+<Warning>
+  `solveChallenge` ist synchron und CPU-intensiv. Verwenden Sie es nicht in produktiven Request-Handlern — es ist nur für Tests und Tools gedacht.
+</Warning>

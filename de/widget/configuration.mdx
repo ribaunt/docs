@@ -1,0 +1,109 @@
+---
+title: "Ribaunt-Widget-Konfiguration: Attribute- und Props-Referenz"
+sidebarTitle: "Konfiguration"
+description: "Vollständige Referenz für alle ribaunt-widget-HTML-Attribute und React-Props: Endpunkte, Auto-Verify, Timeout, Disabled-Zustand und Challenge-Response-Formate."
+---
+
+Die Web-Komponente `<ribaunt-widget>` und ihr React-Wrapper teilen dieselbe Konfigurationsoberfläche. HTML verwendet Kebab-Case-Attribute; React verwendet camelCase-Props. Sie können beide je nach Stack austauschbar verwenden — alles, was hier beschrieben wird, gilt für beide, sofern nicht anders angegeben.
+
+## Schnellbeispiel
+
+Der folgende Ausschnitt zeigt jedes verfügbare Attribut, das auf dem HTML-Element gesetzt ist:
+
+```html
+<ribaunt-widget
+  challenge-endpoint="/api/captcha/challenge"
+  verify-endpoint="/api/captcha/verify"
+  auto-verify="true"
+  show-warning="false"
+  warning-message="Verification may take longer on this device."
+  solve-timeout="15000"
+  disabled="false"
+></ribaunt-widget>
+```
+
+## Attribut- und Prop-Referenz
+
+| HTML-Attribut | React-Prop | Typ | Standard | Beschreibung |
+|---|---|---|---|---|
+| `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | URL-Endpunkt, der `{ challenges: string[] }` zurückgibt. Wenn undefiniert, kann das Widget nicht automatisch abrufen. |
+| `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | URL-Endpunkt, an den die Lösungen per POST gesendet werden. Wenn undefiniert, müssen Sie die Verifizierung manuell mit dem Solver direkt behandeln. |
+| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Startet die Verifizierung automatisch, sobald das Widget geladen ist. Setzen Sie auf `"false"` oder lassen Sie es weg, um Nutzerinteraktion oder `startVerification()` zu erfordern. |
+| `show-warning` | `showWarning` | `boolean \| string` | `false` | Zeigt ein rotes Warnbanner über dem Widget an. Häufig verwendet, um Nutzer zu warnen, wenn WebAssembly für zukünftige Fast-Solver fehlt. |
+| `warning-message` | `warningMessage` | `string` | `"Enable WASM..."` | Benutzerdefinierter Nachrichtentext für das Warnbanner. |
+| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optionales Timeout in Millisekunden für das Lösen. Wenn weggelassen, wird das Lösen nicht automatisch abgebrochen. |
+| `disabled` | `disabled` | `boolean \| string` | `false` | Deaktiviert Nutzerinteraktion und programmatische Verifizierung, solange gesetzt. |
+
+## Antwortformat des Challenge-Endpunkts
+
+Ihr `challenge-endpoint` sollte einen JSON-Body zurückgeben, der die Challenge-Tokens enthält, die das Widget lösen wird. Das empfohlene Antwortformat ist `{ challenges: string[] }`.
+
+<Info>
+Das Widget akzeptiert drei Antwortformate vom `challenge-endpoint`:
+
+1. `{ challenges: string[] }` — empfohlener Vertrag
+2. `{ tokens: string[] }` — Legacy-Kompatibilität
+3. rohes `string[]` — Legacy-Kompatibilität
+
+Ungültige oder gemischt typisierte Token-Arrays schlagen mit einem klaren Widget-Error-Event schnell fehl.
+</Info>
+
+## Verhalten im Disabled-Zustand
+
+Wenn Sie `disabled` (oder einen anderen Wert als `"false"`) setzen, geht das Widget in einen vollständig inerten Zustand über. Konkret:
+
+- Blockiert Klick-Interaktion
+- Blockiert Tastaturaktivierung
+- Macht `startVerification()` zu einer No-Op
+- Verhindert, dass `auto-verify` startet
+- Entfernt das Widget aus der Tab-Reihenfolge
+- Setzt `aria-disabled="true"` für Barrierefreiheit
+
+Verwenden Sie `disabled`, um zu verhindern, dass Nutzer erneut einreichen, während Ihr Server ein Formular verarbeitet, und löschen Sie es, sobald die Antwort eintrifft. Hier ist ein React-Beispiel, das die Disabled-Prop basierend auf einem Loading-Flag umschaltet:
+
+```tsx
+<RibauntWidget
+  disabled={isProcessing}
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+/>
+```
+
+## Imperative Methoden (über ref)
+
+Sie können Methoden direkt am Widget-Element aufrufen, um es programmatisch zu steuern. In React erhalten Sie eine typisierte ref mit `RibauntWidgetHandle`:
+
+| Methode | Beschreibung |
+|---|---|
+| `startVerification()` | Startet den Solving-Flow programmatisch |
+| `reset()` | Setzt das Widget in den Anfangszustand zurück |
+| `getState()` | Gibt die aktuelle Widget-Zustandszeichenkette zurück |
+
+```tsx
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+const ref = useRef<RibauntWidgetHandle>(null);
+// ...
+ref.current?.startVerification();
+ref.current?.reset();
+const state = ref.current?.getState();
+```
+
+## Nur in React verfügbare Props
+
+Zusätzlich zu den oben genannten Attributen akzeptiert der React-Wrapper typisierte Callback-Props und ein `ref`. Diese haben kein HTML-Attribut-Äquivalent und werden vollständig innerhalb des React-Wrappers behandelt:
+
+- `onVerify` — wird ausgelöst, wenn die Verifizierung erfolgreich ist
+- `onError` — wird ausgelöst, wenn ein Fehler auftritt
+- `onStateChange` — wird ausgelöst, wenn das Widget zwischen Zuständen wechselt
+- `onReady` — wird einmal nach dem Mounten des Widgets ausgelöst
+- `onLoad` — Alias für `onReady`, aus Gründen der Abwärtskompatibilität bereitgestellt
+- `onEvent` — Catch-All-Handler für alle Event-Typen
+- `ref` — imperatives Handle, das `reset()`, `getState()` und `startVerification()` bereitstellt
+
+Vollständige Details zu jedem Callback, deren Payload-Typen und Verwendungsbeispielen finden Sie in der [Events-Referenz](/de/widget/events).
+
+<Note>
+Das Lösen im Browser erfordert HTTPS oder `http://localhost`. Das Laden von einer einfachen LAN-URL (z. B. `http://192.168.x.x`) schlägt fehl, da die Web Crypto API nicht verfügbar ist.
+</Note>

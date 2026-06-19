@@ -1,0 +1,80 @@
+---
+title: "Ribaunt Belgeleri: Durumsuz İş Kanıtı (PoW) CAPTCHA Kütüphanesi"
+sidebarTitle: "Ana Sayfa"
+description: "Ribaunt, Node.js ve tarayıcılar için durumsuz bir PoW CAPTCHA kütüphanesidir. Veritabanı gerekmez — meydan okumalar, sunucunuzda doğrulanan imzalı JWT'lerdir."
+---
+
+Ribaunt, Node.js ve modern tarayıcılar için durumsuz bir iş kanıtı (proof-of-work) CAPTCHA kütüphanesidir. Sunucunuz meydan okumaları imzalı JWT'ler olarak yayınlar, tarayıcı widget'ı PoW bulmacasını çözer ve sunucunuz gönderilen kanıtı doğrular — hepsi bir veritabanına dokunmadan. Botları durdururken gerçek kullanıcılar için akıcı bir deneyim sürdürmek üzere herhangi bir formun, kayıt akışının veya API uç noktasının önüne ekleyin.
+
+<CardGroup cols={2}>
+  <Card title="Giriş" icon="book-open" href="/tr/introduction">
+    Ribaunt'un ne olduğunu, iş kanıtı CAPTCHA'sının uygulamanızı nasıl koruduğunu ve durumsuz doğrulamanın dağıtımı neden basitleştirdiğini öğrenin.
+  </Card>
+  <Card title="Hızlı Başlangıç" icon="rocket" href="/tr/quickstart">
+    Ribaunt'u kurun, gizli anahtarınızı yapılandırın, iki sunucu uç noktası ekleyin ve tarayıcı widget'ını beş dakikadan kısa bir sürede gömün.
+  </Card>
+  <Card title="Sunucu Kurulumu" icon="server" href="/tr/server/express">
+    Meydan okuma ve doğrulama uç noktaları, yeniden oynatma koruması ve TypeScript türleri içeren tam Express sunucu örneği.
+  </Card>
+  <Card title="API Referansı" icon="code" href="/tr/api/create-challenge">
+    `createChallenge`, `verifySolution`, `solveChallenge` ve tüm yapılandırma seçenekleri için eksiksiz referans.
+  </Card>
+</CardGroup>
+
+## Dört adımda çalışır hale getirin
+
+<Steps>
+  <Step title="Ribaunt'u kurun">
+    Paketi tercih ettiğiniz paket yöneticisi ile projenize ekleyin.
+
+    ```bash
+    npm install ribaunt
+    ```
+  </Step>
+  <Step title="RIBAUNT_SECRET'i ayarlayın">
+    Sunucu ortamınıza güçlü, rastgele oluşturulmuş bir gizli anahtar ekleyin. Ribaunt, JWT meydan okuma jetonlarını imzalamak ve doğrulamak için bunu kullanır.
+
+    ```env
+    RIBAUNT_SECRET="replace-with-a-long-random-secret"
+    ```
+  </Step>
+  <Step title="Sunucu uç noktaları ekleyin">
+    Meydan okumalar yayınlayan bir `GET /api/captcha/challenge` uç noktası ve çözümleri doğrulayan bir `POST /api/captcha/verify` uç noktası oluşturun.
+
+    ```ts
+    import { createChallenge, verifySolution } from 'ribaunt';
+
+    app.get('/api/captcha/challenge', (_req, res) => {
+      const challenges = createChallenge(5, 4, 120);
+      res.json({ challenges });
+    });
+
+    app.post('/api/captcha/verify', async (req, res) => {
+      const { tokens, solutions } = req.body;
+      const valid = await verifySolution(tokens, solutions);
+      if (!valid) return res.status(400).json({ success: false });
+      return res.json({ success: true });
+    });
+    ```
+  </Step>
+  <Step title="Widget'ı ekleyin">
+    Web bileşenini HTML sayfanıza ekleyin. Bir meydan okuma getirir, tarayıcıda çözer ve tamamlandığında bir `verify` olayı yayar.
+
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+
+    <ribaunt-widget
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+
+    <script>
+      document.querySelector('ribaunt-widget')
+        .addEventListener('verify', (e) => {
+          console.log('Verified!', e.detail.solutions);
+        });
+    </script>
+    ```
+  </Step>
+</Steps>
