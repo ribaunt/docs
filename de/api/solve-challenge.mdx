@@ -1,0 +1,89 @@
+---
+title: "solveChallenge"
+sidebarTitle: "solveChallenge"
+description: "solveChallenge(token, options?) löst JWT-Challenge-Tokens synchron. Für Tests und Tooling verwenden — nicht in produktiven Request-Handlern."
+---
+
+`solveChallenge()` führt denselben Proof-of-Work-Algorithmus aus, den das Browser-Widget verwendet, jedoch synchron in Node.js. Es ist für automatisierte Tests deiner Challenge- und Verify-Endpunkte gedacht — nicht für den produktiven Einsatz in Request-Handlern.
+
+## Import
+
+```ts
+import { solveChallenge } from 'ribaunt';
+```
+
+## Signatur
+
+```ts
+// Single token
+function solveChallenge(
+  token: ChallengeToken,
+  options?: SolveChallengeOptions
+): ChallengeSolution | undefined
+
+// Array of tokens
+function solveChallenge(
+  token: ChallengeToken[],
+  options?: SolveChallengeOptions
+): ChallengeSolution[] | undefined
+```
+
+## Parameter
+
+<ParamField path="token" type="ChallengeToken | ChallengeToken[]" required>
+  Ein einzelnes JWT-Challenge-Token oder ein Array von Tokens aus `createChallenge()`.
+</ParamField>
+
+<ParamField path="options" type="SolveChallengeOptions">
+  Optionale Sicherungen, um lang laufende synchrone Lösevorgänge zu verhindern.
+
+  <Expandable title="SolveChallengeOptions">
+    <ParamField path="maxIterations" type="number">
+      Harte Obergrenze für Nonce-Versuche pro Token. Gibt `undefined` zurück, wenn erreicht.
+    </ParamField>
+
+    <ParamField path="maxDurationMs" default="30000" type="number">
+      Maximale synchrone Lösezeit in Millisekunden pro Token. Gibt `undefined` zurück, wenn überschritten.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Rückgabewert
+
+Gibt eine `ChallengeSolution` (`{ nonce: string; hash: string }`) für eine einzelne Token-Eingabe zurück oder `ChallengeSolution[]` für eine Array-Eingabe. Gibt `undefined` zurück, wenn eine Sicherung erreicht wird oder ein Token ungültig ist. Beim Lösen eines Arrays wird `undefined` zurückgegeben, sobald ein einzelnes Token fehlschlägt — es werden keine Teilergebnisse zurückgegeben.
+
+## Beispiel
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Use low difficulty in tests for speed
+const tokens = createChallenge(3, 2, 60);
+const solutions = solveChallenge(tokens);
+
+if (solutions) {
+  const valid = await verifySolution(tokens, solutions);
+  console.log('Valid:', valid); // true
+}
+```
+
+Mit Sicherungen:
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,
+  maxIterations: 500_000,
+});
+
+if (!solution) {
+  console.log('Solver gave up — difficulty too high or timeout reached');
+}
+```
+
+<Warning>
+  `solveChallenge` ist synchron und CPU-intensiv. Rufe es niemals in einem produktiven HTTP-Request-Handler auf — es wird deine Node.js-Event-Loop blockieren.
+</Warning>
+
+<Tip>
+  Verwende in Tests die Schwierigkeit 3–4. Schwierigkeit 5 verlangsamt deine Test-Suite spürbar.
+</Tip>

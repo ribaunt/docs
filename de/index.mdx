@@ -1,0 +1,80 @@
+---
+title: "Ribaunt-Dokumentation: Zustandslose Proof-of-Work-CAPTCHA-Bibliothek"
+sidebarTitle: "Startseite"
+description: "Ribaunt ist eine zustandslose PoW-CAPTCHA-Bibliothek für Node.js und Browser. Keine Datenbank erforderlich – Challenges sind signierte JWTs, die auf deinem Server verifiziert werden."
+---
+
+Ribaunt ist eine zustandslose Proof-of-Work-CAPTCHA-Bibliothek für Node.js und moderne Browser. Dein Server stellt Challenges als signierte JWTs aus, das Browser-Widget löst das PoW-Rätsel, und dein Server verifiziert den eingereichten Nachweis – ganz ohne Datenbank. Setze es vor jedes Formular, jeden Anmeldevorgang oder API-Endpunkt, um Bots zu stoppen und gleichzeitig echten Nutzern ein reibungsloses Erlebnis zu bieten.
+
+<CardGroup cols={2}>
+  <Card title="Einführung" icon="book-open" href="/introduction">
+    Erfahre, was Ribaunt ist, wie Proof-of-Work-CAPTCHA deine App schützt und warum zustandslose Verifizierung die Bereitstellung vereinfacht.
+  </Card>
+  <Card title="Schnellstart" icon="rocket" href="/quickstart">
+    Installiere Ribaunt, konfiguriere dein Secret, füge zwei Server-Endpunkte hinzu und binde das Browser-Widget in unter fünf Minuten ein.
+  </Card>
+  <Card title="Server-Einrichtung" icon="server" href="/server/express">
+    Vollständiges Express-Server-Beispiel mit Challenge- und Verify-Endpunkten, Wiederholungsschutz und TypeScript-Typen.
+  </Card>
+  <Card title="API-Referenz" icon="code" href="/api/create-challenge">
+    Vollständige Referenz für `createChallenge`, `verifySolution`, `solveChallenge` und alle Konfigurationsoptionen.
+  </Card>
+</CardGroup>
+
+## In vier Schritten startklar
+
+<Steps>
+  <Step title="Ribaunt installieren">
+    Füge das Paket mit deinem bevorzugten Paketmanager zu deinem Projekt hinzu.
+
+    ```bash
+    npm install ribaunt
+    ```
+  </Step>
+  <Step title="RIBAUNT_SECRET festlegen">
+    Hinterlege ein starkes, zufällig generiertes Secret in deiner Serverumgebung. Ribaunt verwendet es, um JWT-Challenge-Tokens zu signieren und zu verifizieren.
+
+    ```env
+    RIBAUNT_SECRET="replace-with-a-long-random-secret"
+    ```
+  </Step>
+  <Step title="Server-Endpunkte hinzufügen">
+    Erstelle einen `GET /api/captcha/challenge`-Endpunkt, der Challenges ausstellt, und einen `POST /api/captcha/verify`-Endpunkt, der Lösungen validiert.
+
+    ```ts
+    import { createChallenge, verifySolution } from 'ribaunt';
+
+    app.get('/api/captcha/challenge', (_req, res) => {
+      const challenges = createChallenge(5, 4, 120);
+      res.json({ challenges });
+    });
+
+    app.post('/api/captcha/verify', async (req, res) => {
+      const { tokens, solutions } = req.body;
+      const valid = await verifySolution(tokens, solutions);
+      if (!valid) return res.status(400).json({ success: false });
+      return res.json({ success: true });
+    });
+    ```
+  </Step>
+  <Step title="Widget einbinden">
+    Füge die Web-Komponente in deine HTML-Seite ein. Sie lädt eine Challenge, löst sie im Browser und sendet ein `verify`-Event, sobald sie fertig ist.
+
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+
+    <ribaunt-widget
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+
+    <script>
+      document.querySelector('ribaunt-widget')
+        .addEventListener('verify', (e) => {
+          console.log('Verified!', e.detail.solutions);
+        });
+    </script>
+    ```
+  </Step>
+</Steps>

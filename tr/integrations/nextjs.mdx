@@ -1,0 +1,59 @@
+---
+title: "Next.js"
+sidebarTitle: "Next.js"
+description: "React sarmalayıcısını bir istemci bileşeninde kullanarak Next.js'e Ribaunt CAPTCHA ekleyin. App Router kurulumu, SSR korumaları ve ortam değişkeni güvenliğini kapsar."
+---
+
+Ribaunt'un `ribaunt/widget-react` adresindeki React sarmalayıcısı, yalnızca tarayıcıya özgü web bileşenini istemcide dinamik olarak içe aktararak SSR korumalarını otomatik olarak ele alır. Bileşen dosyanıza `'use client'` ekleyin, `RibauntWidget`'ı içe aktarın ve hazırsınız — ek yapılandırma gerekmez.
+
+<Warning>
+  **`RIBAUNT_SECRET` değerini asla `NEXT_PUBLIC_` öneki ile kullanmayın.**\
+  Bunu yapmak, gizli anahtarı istemci paketinize gömer ve her ziyaretçiye açar. `RIBAUNT_SECRET` değerini, yalnızca sunucuda kalmasını sağlamak için `.env.local` dosyasında `NEXT_PUBLIC_` öneki olmadan tutun.
+</Warning>
+
+## İstemci bileşeni kurulumu
+
+Bir istemci bileşeni oluşturun ve `RibauntWidget`'ı yerleştirin. Sarmalayıcı dinamik içe aktarmayı dahili olarak ele aldığı için, onu `next/dynamic` içine sarmanız **gerekmez**.
+
+```tsx
+'use client';
+
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+export default function ContactForm() {
+  const widgetRef = useRef<RibauntWidgetHandle>(null);
+
+  return (
+    <form>
+      <RibauntWidget
+        ref={widgetRef}
+        challengeEndpoint="/api/captcha/challenge"
+        verifyEndpoint="/api/captcha/verify"
+        autoVerify={true}
+        solveTimeout={15000}
+        onVerify={(detail) => console.log('Verified:', detail.solutions)}
+        onError={(detail) => console.error('Failed:', detail.error)}
+        onReady={(detail) => console.log('Ready:', detail.state)}
+      />
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+```
+
+<Note>
+  **`next/dynamic` içine SARMAYIN** — `ribaunt/widget-react` sarmalayıcısı dinamik içe aktarmayı zaten dahili olarak ele alır. Ekstra bir `next/dynamic` çağrısı eklemek gereksizdir ve çift yüklemeye neden olabilir.
+</Note>
+
+## API yolları
+
+Yukarıdaki istemci bileşeni `/api/captcha/challenge` ve `/api/captcha/verify` adreslerini çağırır. Challenge'lar oluşturmak ve çözümleri doğrulamak için bu sunucu tarafı uç noktalarını oluşturmanız gerekir. Tam yol işleyici uygulaması için [Next.js sunucu kılavuzu](/server/nextjs) sayfasına bakın.
+
+## Önemli hususlar
+
+- **Her zaman `'use client'` kullanın** — `RibauntWidget` tarayıcıda işlenir ve tarayıcı API'lerine dayanır.
+- **`next/dynamic` kullanmayın** — sarmalayıcı dinamik içe aktarmayı kendisi ele alır; `next/dynamic` eklemek gereksizdir.
+- **`RIBAUNT_SECRET` değerini `NEXT_PUBLIC_` aracılığıyla açmayın** — gizli anahtar yalnızca sunucu tarafında kalmalıdır.
+- **HTTPS veya localhost kullanın** — tarayıcı çözümü, güvenli bağlamlarla sınırlı olan Web Crypto API'sine bağlıdır. Düz yerel ağ HTTP URL'leri (örneğin `http://192.168.x.x`) çalışmayacaktır.
+- **Sunucusuz veya edge dağıtımları için** — varsayılan tekrar oynatma önleme, sunucusuz örnekler arasında paylaşılmayan süreç yerel belleğini kullanır. Bu ortamlarda tekrar oynatma saldırılarını önlemek için atomik bir dağıtık depo ile `replayPrevention: 'remote'` ayarlayın.

@@ -1,0 +1,80 @@
+---
+title: "createChallenge"
+sidebarTitle: "createChallenge"
+description: "createChallenge(difficulty, amount, ttlSeconds), iş kanıtı doğrulaması için imzalı JWT challenge token'ları oluşturur."
+---
+
+`createChallenge()`, `ribaunt`'tan içe aktarılır ve bir veya daha fazla iş kanıtı challenge token'ı oluşturmak için sunucu tarafında çağrılır. Her token, tarayıcı çözücüsünün çözüp üzerinde çalıştığı imzalı bir JWT'dir.
+
+## İçe aktarma
+
+```ts
+import { createChallenge } from 'ribaunt';
+```
+
+## İmza
+
+```ts
+function createChallenge(
+  difficulty?: number,
+  amount?: number,
+  ttlSeconds?: number
+): ChallengeToken[]
+```
+
+## Parametreler
+
+<ParamField path="difficulty" default="5" type="number">
+  SHA-256 hash'inde gereken öndeki sıfır onaltılık basamak sayısı. Her artış çözüm süresini kabaca iki katına çıkarır. 6'nın üzerindeki değerler tarayıcıların donmasına neden olabilir.
+</ParamField>
+
+<ParamField path="amount" default="4" type="number">
+  Oluşturulacak challenge token sayısı. Daha fazla challenge, toplam iş kanıtını artırır ancak aynı zamanda ağ bant genişliğini de artırır.
+</ParamField>
+
+<ParamField path="ttlSeconds" default="30" type="number">
+  Saniye cinsinden challenge token ömrü. Süre dolduktan sonra gönderilen token'lar `verifySolution` tarafından reddedilir.
+</ParamField>
+
+## Dönüş değeri
+
+`ChallengeToken[]` döndürür — imzalı JWT dizelerinden oluşan bir dizi. Bu diziyi tarayıcıya `{ challenges: tokens }` olarak gönderin.
+
+## Örnek
+
+```ts
+import { createChallenge } from 'ribaunt';
+
+// Fast: low difficulty, short TTL (login forms, comment boxes)
+const fast = createChallenge(4, 4, 30);
+
+// Moderate: standard configuration for most use cases
+const moderate = createChallenge(5, 4, 120);
+
+// High: sensitive actions (account creation, password reset)
+const high = createChallenge(5, 8, 120);
+```
+
+## Önerilen ayarlar
+
+| Kullanım durumu | Zorluk | Miktar | TTL |
+| --- | --- | --- | --- |
+| Hızlı / arka plan | 4 | 4 | 30 |
+| Orta / form gönderimi | 5 | 4 | 60 |
+| Yüksek / hassas eylemler | 5 | 8 | 120 |
+
+## Doğrulama
+
+`createChallenge()` her üç parametreyi de çalışma zamanında doğrular ve herhangi bir değer geçersizse hata fırlatır:
+
+- **`difficulty`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
+- **`amount`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
+- **`ttlSeconds`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
+
+<Warning>
+  Kullanıcı kontrolündeki istek parametrelerinin doğrulama olmadan doğrudan `createChallenge()`'a akmasına asla izin vermeyin.
+</Warning>
+
+<Note>
+  `RIBAUNT_SECRET`'in bir ortam değişkeni olarak ayarlanmasını gerektirir. Gizli anahtar eksikse `createChallenge()` hata fırlatır.
+</Note>
