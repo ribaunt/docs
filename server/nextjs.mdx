@@ -1,14 +1,13 @@
 ---
-title: "Add Ribaunt CAPTCHA Endpoints to a Next.js Application"
+title: "Next.js"
 sidebarTitle: "Next.js API"
 description: "Create Ribaunt CAPTCHA challenge and verify handlers for Next.js App Router and Pages Router, with environment setup and replay protection tips."
 ---
 
-This guide shows you how to add the two Ribaunt CAPTCHA API routes to a Next.js application — one to issue challenges and one to verify solutions. Both the App Router (`app/` directory, Next.js 13+) and the Pages Router (`pages/api/`, Next.js 12 and below) are covered below.
+This guide shows you how to add the two Ribaunt CAPTCHA API routes to a Next.js application — one to issue challenges and one to verify solutions. Both the App Router (`app/` directory, Next.js 13\+) and the Pages Router (`pages/api/`, Next.js 12 and below) are covered below.
 
 <Warning>
-  Never prefix `RIBAUNT_SECRET` with `NEXT_PUBLIC_`. Variables prefixed that way are bundled into
-  the client at build time and exposed to every browser. Keep this value server-only.
+  Never prefix `RIBAUNT_SECRET` with `NEXT_PUBLIC_`. Variables prefixed that way are bundled into the client at build time and exposed to every browser. Keep this value server-only.
 </Warning>
 
 ## Environment setup
@@ -20,67 +19,62 @@ Add your secret to `.env.local`. Next.js loads this file automatically and keeps
 RIBAUNT_SECRET="your_very_strong_random_secret_string"
 ```
 
-## App Router (Next.js 13+)
+## App Router (Next.js 13\+)
 
 <Tip>
-  Place these files at `app/api/captcha/challenge/route.ts` and
-  `app/api/captcha/verify/route.ts`.
+  Place these files at `app/api/captcha/challenge/route.ts` and `app/api/captcha/verify/route.ts`.
 </Tip>
 
 Create the two route handler files shown below. Each file exports a named HTTP-method function (`GET` or `POST`) — the App Router convention.
 
 <Tabs>
   <Tab title="challenge/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { createChallenge } from 'ribaunt';
+    
+    export async function GET() {
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        return NextResponse.json({ challenges });
+      } catch (error) {
+        return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
+      }
+    }
+    ```
 
-```ts
-import { NextResponse } from 'next/server';
-import { createChallenge } from 'ribaunt';
-
-export async function GET() {
-  try {
-    const challenges = createChallenge(5, 4, 60);
-    return NextResponse.json({ challenges });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
-  }
-}
-```
-
-`createChallenge(5, 4, 60)` generates 4 signed challenge tokens at difficulty 5, each valid for 60 seconds. The function returns an array of JWT strings; wrapping it in `{ challenges }` matches the response contract the Ribaunt widget expects.
-
+    `createChallenge(5, 4, 60)` generates 4 signed challenge tokens at difficulty 5, each valid for 60 seconds. The function returns an array of JWT strings; wrapping it in `{ challenges }` matches the response contract the Ribaunt widget expects.
   </Tab>
   <Tab title="verify/route.ts">
+    ```ts
+    import { NextResponse } from 'next/server';
+    import { verifySolution } from 'ribaunt';
+    
+    export async function POST(req: Request) {
+      const { tokens, solutions } = await req.json();
+    
+      if (!tokens || !solutions) {
+        return NextResponse.json(
+          { success: false, error: 'Missing tokens or solutions' },
+          { status: 400 }
+        );
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => console.log('captcha warning', warning.reason),
+      });
+    
+      if (isValid) {
+        return NextResponse.json({ success: true });
+      }
+      return NextResponse.json(
+        { success: false, error: 'Invalid CAPTCHA solution' },
+        { status: 400 }
+      );
+    }
+    ```
 
-```ts
-import { NextResponse } from 'next/server';
-import { verifySolution } from 'ribaunt';
-
-export async function POST(req: Request) {
-  const { tokens, solutions } = await req.json();
-
-  if (!tokens || !solutions) {
-    return NextResponse.json(
-      { success: false, error: 'Missing tokens or solutions' },
-      { status: 400 }
-    );
-  }
-
-  const isValid = await verifySolution(tokens, solutions, {
-    onWarning: (warning) => console.log('captcha warning', warning.reason),
-  });
-
-  if (isValid) {
-    return NextResponse.json({ success: true });
-  }
-  return NextResponse.json(
-    { success: false, error: 'Invalid CAPTCHA solution' },
-    { status: 400 }
-  );
-}
-```
-
-`verifySolution` validates the JWT signature, checks that each hash meets the required difficulty, rejects expired tokens, and (by default) blocks token replay within the current process. It returns a `Promise<boolean>`.
-
+    `verifySolution` validates the JWT signature, checks that each hash meets the required difficulty, rejects expired tokens, and (by default) blocks token replay within the current process. It returns a `Promise<boolean>`.
   </Tab>
 </Tabs>
 
@@ -90,69 +84,61 @@ If you are using the `pages/api/` directory, create the two handler files below.
 
 <Tabs>
   <Tab title="pages/api/captcha/challenge.ts">
-
-```ts
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { createChallenge } from 'ribaunt';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  try {
-    const challenges = createChallenge(5, 4, 60);
-    res.status(200).json({ challenges });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to generate challenge' });
-  }
-}
-```
-
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { createChallenge } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      try {
+        const challenges = createChallenge(5, 4, 60);
+        res.status(200).json({ challenges });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to generate challenge' });
+      }
+    }
+    ```
   </Tab>
   <Tab title="pages/api/captcha/verify.ts">
-
-```ts
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { verifySolution } from 'ribaunt';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const { tokens, solutions } = req.body;
-
-  if (!tokens || !solutions) {
-    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
-  }
-
-  const isValid = await verifySolution(tokens, solutions, {
-    onWarning: (warning) => {
-      console.log('captcha warning', warning.reason, warning.message);
-    },
-  });
-
-  if (isValid) {
-    return res.status(200).json({ success: true });
-  }
-  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
-}
-```
-
+    ```ts
+    import type { NextApiRequest, NextApiResponse } from 'next';
+    import { verifySolution } from 'ribaunt';
+    
+    export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    
+      const { tokens, solutions } = req.body;
+    
+      if (!tokens || !solutions) {
+        return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+      }
+    
+      const isValid = await verifySolution(tokens, solutions, {
+        onWarning: (warning) => {
+          console.log('captcha warning', warning.reason, warning.message);
+        },
+      });
+    
+      if (isValid) {
+        return res.status(200).json({ success: true });
+      }
+      return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+    }
+    ```
   </Tab>
 </Tabs>
 
 ## Serverless and edge deployments
 
 <Note>
-  The default `replayPrevention: 'local'` mode stores used token IDs in an in-process `Map`. When
-  your application runs as serverless functions or across multiple instances, each cold start begins
-  with an empty store, so a token solved against one instance can be replayed against another.
+  The default `replayPrevention: 'local'` mode stores used token IDs in an in-process `Map`. When your application runs as serverless functions or across multiple instances, each cold start begins with an empty store, so a token solved against one instance can be replayed against another.
 
-  To prevent cross-instance replays, pass `replayPrevention: 'remote'` together with a
-  `replayStore` adapter backed by an atomic distributed store (for example Redis with a `SET NX`
-  operation):
+  To prevent cross-instance replays, pass `replayPrevention: 'remote'` together with a `replayStore` adapter backed by an atomic distributed store (for example Redis with a `SET NX` operation):
 
   ```ts
   const isValid = await verifySolution(tokens, solutions, {
@@ -161,7 +147,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   ```
 
-  The `replayStore` must implement a `consume(jti: string, expiresAt: number): Promise<boolean>`
-  method that atomically returns `true` the first time a given `jti` is seen and `false` on any
-  subsequent call.
+  The `replayStore` must implement a `consume(jti: string, expiresAt: number): Promise<boolean>` method that atomically returns `true` the first time a given `jti` is seen and `false` on any subsequent call.
 </Note>

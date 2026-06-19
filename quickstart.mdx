@@ -1,5 +1,5 @@
 ---
-title: "Quickstart: Get Ribaunt CAPTCHA Running in Five Minutes"
+title: "Quickstart"
 sidebarTitle: "Quickstart"
 description: "Install Ribaunt, set your secret, add two server endpoints for challenges and verification, and drop the browser widget into your page in minutes."
 ---
@@ -11,20 +11,21 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
     Add the `ribaunt` package to your project.
 
     <CodeGroup>
-      ```bash npm
-      npm install ribaunt
-      ```
 
-      ```bash yarn
-      yarn add ribaunt
-      ```
+    ```bash npm
+    npm install ribaunt
+    ```
 
-      ```bash pnpm
-      pnpm add ribaunt
-      ```
+    ```bash yarn
+    yarn add ribaunt
+    ```
+
+    ```bash pnpm
+    pnpm add ribaunt
+    ```
+
     </CodeGroup>
   </Step>
-
   <Step title="Set your secret">
     Ribaunt signs every challenge token with a secret you control. Add `RIBAUNT_SECRET` to your server environment — a `.env` file, your hosting platform's secrets manager, or however you manage server config.
 
@@ -36,7 +37,6 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
       Never expose `RIBAUNT_SECRET` to the browser. In Next.js, do **not** prefix it with `NEXT_PUBLIC_` — that would embed the secret in your client bundle and allow anyone to forge valid challenge tokens.
     </Warning>
   </Step>
-
   <Step title="Create server endpoints">
     You need two endpoints: one that issues challenges and one that verifies solutions. Here's a complete Express example using the `createChallenge` and `verifySolution` functions from `ribaunt`.
 
@@ -44,29 +44,29 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
     import 'dotenv/config';
     import express from 'express';
     import { createChallenge, verifySolution } from 'ribaunt';
-
+    
     const app = express();
     app.use(express.json());
-
+    
     // Issues signed JWT challenges to the browser widget
     app.get('/api/captcha/challenge', (_req, res) => {
       const challenges = createChallenge(5, 4, 120);
       // createChallenge(difficulty, amount, ttlSeconds)
       res.json({ challenges });
     });
-
+    
     // Verifies the nonces submitted by the browser widget
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
       const valid = await verifySolution(tokens, solutions);
-
+    
       if (!valid) {
         return res.status(400).json({ success: false, error: 'Invalid CAPTCHA solution' });
       }
-
+    
       return res.json({ success: true });
     });
-
+    
     app.listen(3000);
     ```
 
@@ -80,22 +80,21 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
 
     `verifySolution` returns a `Promise<boolean>`. It validates the JWT signature, checks expiry, confirms the nonce produces a hash with the required leading zeros, and blocks replay by default using process-local storage.
   </Step>
-
   <Step title="Add the widget to your frontend">
     Include the Ribaunt web component script and place the `<ribaunt-widget>` element wherever you need CAPTCHA protection. The widget fetches a challenge from your server, solves it in the background, then calls your verify endpoint automatically when `auto-verify="true"` is set.
 
     ```html
     <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
-
+    
     <ribaunt-widget
       challenge-endpoint="/api/captcha/challenge"
       verify-endpoint="/api/captcha/verify"
       auto-verify="true"
     ></ribaunt-widget>
-
+    
     <script>
       const widget = document.querySelector('ribaunt-widget');
-
+    
       widget.addEventListener('verify', (e) => {
         console.log('Verified!', e.detail.solutions);
       });
@@ -116,9 +115,11 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
   <Card title="Widget configuration" icon="sliders" href="/widget/configuration">
     Explore all widget attributes — timeouts, theming, warning banners, and the `disabled` state.
   </Card>
+
   <Card title="React integration" icon="react" href="/integrations/react">
     Use the `ribaunt/widget-react` wrapper with full prop support in React and Next.js App Router.
   </Card>
+
   <Card title="Express server example" icon="server" href="/server/express">
     A production-ready Express server setup with replay protection and structured warning callbacks.
   </Card>

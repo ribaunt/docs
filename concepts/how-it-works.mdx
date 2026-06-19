@@ -1,5 +1,5 @@
 ---
-title: "How Ribaunt Proof-of-Work CAPTCHA Challenge Flow Works"
+title: "How Ribaunt Works"
 sidebarTitle: "How It Works"
 description: "Understand the proof-of-work challenge-response flow behind Ribaunt: JWT challenge issuance, browser solving with Web Crypto, and server-side verification."
 ---
@@ -16,7 +16,7 @@ Every Ribaunt verification follows a three-step cycle.
 
     ```ts
     import { createChallenge } from 'ribaunt';
-
+    
     // Issue 4 challenges at difficulty 5, valid for 60 seconds
     const challenges = createChallenge(5, 4, 60);
     ```
@@ -36,9 +36,9 @@ Every Ribaunt verification follows a three-step cycle.
 
     ```ts
     import { verifySolution } from 'ribaunt';
-
+    
     const valid = await verifySolution(tokens, solutions);
-
+    
     if (!valid) {
       return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
     }
@@ -51,7 +51,7 @@ Every Ribaunt verification follows a three-step cycle.
 Each challenge token is a standard signed JWT. When decoded, its payload contains:
 
 | Field | Description |
-|---|---|
+| --- | --- |
 | `challenge` | A random base64 string generated fresh for each token |
 | `difficulty` | The number of leading zeros the SHA-256 hash must start with |
 | `expires` | A Unix timestamp (seconds) after which the token is rejected |
@@ -68,7 +68,7 @@ The tokens are signed with `RIBAUNT_SECRET`, an environment variable you set on 
 The `difficulty` parameter controls how many leading zeros the winning hash must have. Because each additional zero cuts the probability of a random hash qualifying by a factor of 16, every increment roughly doubles the expected number of hash attempts — and therefore the solve time.
 
 | Setting | Approximate solve time | Recommended use |
-|---|---|---|
+| --- | --- | --- |
 | `createChallenge(4, 4, 30)` | Milliseconds | Fast / background checks |
 | `createChallenge(5, 4, 60)` | ~1 second | Moderate / form submission |
 | `createChallenge(5, 8, 120)` | ~2 seconds | High / sensitive actions |

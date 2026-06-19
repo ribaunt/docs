@@ -1,5 +1,5 @@
 ---
-title: "Troubleshooting Ribaunt CAPTCHA: Common Issues and Fixes"
+title: "Troubleshooting"
 sidebarTitle: "Troubleshooting"
 description: "Diagnose and fix common Ribaunt CAPTCHA issues: RIBAUNT_SECRET errors, Web Crypto failures, expired tokens, replay detection, and widget loading."
 ---
@@ -7,139 +7,122 @@ description: "Diagnose and fix common Ribaunt CAPTCHA issues: RIBAUNT_SECRET err
 This guide covers the most common issues you may encounter when integrating Ribaunt and how to resolve them. For each issue you'll find the likely cause and the exact fix to apply.
 
 <AccordionGroup>
+  <Accordion title='Error: "RIBAUNT_SECRET environment variable is not set!"'>
+    **Cause:** `RIBAUNT_SECRET` is missing from your environment, or it is not loaded into the process before the first call to `createChallenge` or `verifySolution`.
 
-<Accordion title='Error: "RIBAUNT_SECRET environment variable is not set!"'>
+    **Fix:** Ensure the variable is defined before your server handles its first request. If you use a `.env` file, load it at the top of your entry point with a tool like `dotenv`:
 
-**Cause:** `RIBAUNT_SECRET` is missing from your environment, or it is not loaded into the process before the first call to `createChallenge` or `verifySolution`.
+    ```ts
+    import 'dotenv/config'; // Must come before any ribaunt imports
+    import { createChallenge } from 'ribaunt';
+    ```
 
-**Fix:** Ensure the variable is defined before your server handles its first request. If you use a `.env` file, load it at the top of your entry point with a tool like `dotenv`:
+    For hosted runtimes (Vercel, Railway, Fly.io, etc.), set `RIBAUNT_SECRET` through your platform's environment variable dashboard rather than committing it to source control. Rotate the secret immediately if it is ever accidentally exposed.
+  </Accordion>
 
-```ts
-import 'dotenv/config'; // Must come before any ribaunt imports
-import { createChallenge } from 'ribaunt';
-```
+  <Accordion title='Widget error: "Web Crypto API is unavailable. Use HTTPS or localhost."'>
+    **Cause:** The browser solver requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts). Plain HTTP on any host other than `localhost` does not qualify. This commonly affects devices on a local network accessed via an IP address such as `http://192.168.x.x`.
 
-For hosted runtimes (Vercel, Railway, Fly.io, etc.), set `RIBAUNT_SECRET` through your platform's environment variable dashboard rather than committing it to source control. Rotate the secret immediately if it is ever accidentally exposed.
+    **Fix:**
 
-</Accordion>
+    - **Production:** always serve your app over HTTPS.
+    - **Development:** use `http://localhost` rather than your machine's LAN IP. If you need other devices on the network to reach your dev server, terminate TLS with a tool like [mkcert](https://github.com/FiloSottile/mkcert) or a local reverse proxy.
+  </Accordion>
 
-<Accordion title='Widget error: "Web Crypto API is unavailable. Use HTTPS or localhost."'>
+  <Accordion title='verifySolution returns false — reason: "expired-token"'>
+    **Cause:** The challenge token's TTL elapsed before the browser submitted its solution. This can happen on pages that take a long time to load, forms where users spend several minutes before submitting, or if the server and client clocks are significantly skewed.
 
-**Cause:** The browser solver requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts). Plain HTTP on any host other than `localhost` does not qualify. This commonly affects devices on a local network accessed via an IP address such as `http://192.168.x.x`.
+    **Fix:** Increase `ttlSeconds` in your `createChallenge` call to give users more time. The default is 30 seconds; consider 120–300 for complex pages or forms:
 
-**Fix:**
-- **Production:** always serve your app over HTTPS.
-- **Development:** use `http://localhost` rather than your machine's LAN IP. If you need other devices on the network to reach your dev server, terminate TLS with a tool like [mkcert](https://github.com/FiloSottile/mkcert) or a local reverse proxy.
+    ```ts
+    // Allow up to 5 minutes to complete the form
+    const tokens = createChallenge(5, 4, 300);
+    ```
+  </Accordion>
 
-</Accordion>
+  <Accordion title='verifySolution returns false — reason: "replay-detected"'>
+    **Cause:** The same challenge tokens were submitted more than once. This is intentional — Ribaunt's default `local` replay store marks tokens as consumed on first use and rejects any subsequent submission.
 
-<Accordion title='verifySolution returns false — reason: "expired-token"'>
+    **Fix:** If this is happening in normal user flows, it most likely means your frontend is re-submitting the same tokens (e.g. on form retry). Issue fresh tokens for each attempt by calling your challenge endpoint again before re-submitting.
 
-**Cause:** The challenge token's TTL elapsed before the browser submitted its solution. This can happen on pages that take a long time to load, forms where users spend several minutes before submitting, or if the server and client clocks are significantly skewed.
+    If you are seeing this in **serverless or multi-instance deployments**, the issue is that each function invocation has its own in-memory store. Tokens consumed in one instance are invisible to others. Switch to `replayPrevention: 'remote'` with a distributed store:
 
-**Fix:** Increase `ttlSeconds` in your `createChallenge` call to give users more time. The default is 30 seconds; consider 120–300 for complex pages or forms:
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          // Use Redis/Valkey SET NX EX for atomic consume semantics
+          const result = await redisClient.set(jti, '1', { NX: true, EXAT: expiresAt });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
 
-```ts
-// Allow up to 5 minutes to complete the form
-const tokens = createChallenge(5, 4, 300);
-```
+  <Accordion title="Widget does not start verifying automatically">
+    **Cause:** The `auto-verify` attribute is absent or the widget is in a `disabled` state, which prevents `auto-verify` from firing even when set.
 
-</Accordion>
+    **Fix:** Add `auto-verify="true"` to the HTML element, or `autoVerify={true}` in the React wrapper:
 
-<Accordion title='verifySolution returns false — reason: "replay-detected"'>
+    ```html
+    <ribaunt-widget
+      challenge-endpoint="/api/challenge"
+      verify-endpoint="/api/verify"
+      auto-verify="true"
+    ></ribaunt-widget>
+    ```
 
-**Cause:** The same challenge tokens were submitted more than once. This is intentional — Ribaunt's default `local` replay store marks tokens as consumed on first use and rejects any subsequent submission.
+    Also check that `disabled` is either absent or explicitly set to `"false"`. While the widget is disabled, `auto-verify` will not trigger.
+  </Accordion>
 
-**Fix:** If this is happening in normal user flows, it most likely means your frontend is re-submitting the same tokens (e.g. on form retry). Issue fresh tokens for each attempt by calling your challenge endpoint again before re-submitting.
+  <Accordion title="Widget not appearing or JS error on load">
+    **Cause:** The widget script is not loading correctly. Common causes include an incorrect path to the built file, loading the script without `type="module"`, or a bundler that is not resolving the package's browser export correctly.
 
-If you are seeing this in **serverless or multi-instance deployments**, the issue is that each function invocation has its own in-memory store. Tokens consumed in one instance are invisible to others. Switch to `replayPrevention: 'remote'` with a distributed store:
+    **Fix:** Load the widget script as a module and verify the path points to `dist/widget-browser.js`:
 
-```ts
-const isValid = await verifySolution(tokens, solutions, {
-  replayPrevention: 'remote',
-  replayStore: {
-    consume: async (jti, expiresAt) => {
-      // Use Redis/Valkey SET NX EX for atomic consume semantics
-      const result = await redisClient.set(jti, '1', { NX: true, EXAT: expiresAt });
-      return result === 'OK';
-    },
-  },
-});
-```
+    ```html
+    <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
+    ```
 
-</Accordion>
+    If you are bundling the widget yourself, make sure your bundler resolves the `browser` export condition from the Ribaunt package. Check your framework's documentation for how to configure export conditions if the widget is tree-shaken or not found.
+  </Accordion>
 
-<Accordion title="Widget does not start verifying automatically">
+  <Accordion title="verifySolution always returns false in serverless or edge deployments">
+    **Cause:** The default `local` replay store lives in process memory. In serverless environments each function invocation is a fresh process, so tokens consumed in a previous invocation are unknown to the next one. This causes the in-memory store to treat every submission as its first — but if two concurrent invocations race, both may consume the same token, or neither may hold state long enough to protect against replay.
 
-**Cause:** The `auto-verify` attribute is absent or the widget is in a `disabled` state, which prevents `auto-verify` from firing even when set.
+    **Fix:** Switch to `replayPrevention: 'remote'` with a Redis or Valkey adapter that uses atomic `SET NX EX` semantics:
 
-**Fix:** Add `auto-verify="true"` to the HTML element, or `autoVerify={true}` in the React wrapper:
+    ```ts
+    const isValid = await verifySolution(tokens, solutions, {
+      replayPrevention: 'remote',
+      replayStore: {
+        consume: async (jti, expiresAt) => {
+          const result = await redis.set(`ribaunt:${jti}`, '1', {
+            NX: true,
+            EXAT: expiresAt,
+          });
+          return result === 'OK';
+        },
+      },
+    });
+    ```
+  </Accordion>
 
-```html
-<ribaunt-widget
-  challenge-endpoint="/api/challenge"
-  verify-endpoint="/api/verify"
-  auto-verify="true"
-></ribaunt-widget>
-```
+  <Accordion title="React wrapper throws an SSR error in Next.js">
+    **Cause:** The `<ribaunt-widget>` web component registers itself using browser-only APIs such as `customElements` and `window`. These are not available during server-side rendering.
 
-Also check that `disabled` is either absent or explicitly set to `"false"`. While the widget is disabled, `auto-verify` will not trigger.
+    **Fix:** Add `'use client'` at the top of any component file that imports or renders `RibauntWidget`:
 
-</Accordion>
+    ```ts
+    'use client';
+    
+    import { RibauntWidget } from 'ribaunt/widget-react';
+    ```
 
-<Accordion title="Widget not appearing or JS error on load">
-
-**Cause:** The widget script is not loading correctly. Common causes include an incorrect path to the built file, loading the script without `type="module"`, or a bundler that is not resolving the package's browser export correctly.
-
-**Fix:** Load the widget script as a module and verify the path points to `dist/widget-browser.js`:
-
-```html
-<script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
-```
-
-If you are bundling the widget yourself, make sure your bundler resolves the `browser` export condition from the Ribaunt package. Check your framework's documentation for how to configure export conditions if the widget is tree-shaken or not found.
-
-</Accordion>
-
-<Accordion title="verifySolution always returns false in serverless or edge deployments">
-
-**Cause:** The default `local` replay store lives in process memory. In serverless environments each function invocation is a fresh process, so tokens consumed in a previous invocation are unknown to the next one. This causes the in-memory store to treat every submission as its first — but if two concurrent invocations race, both may consume the same token, or neither may hold state long enough to protect against replay.
-
-**Fix:** Switch to `replayPrevention: 'remote'` with a Redis or Valkey adapter that uses atomic `SET NX EX` semantics:
-
-```ts
-const isValid = await verifySolution(tokens, solutions, {
-  replayPrevention: 'remote',
-  replayStore: {
-    consume: async (jti, expiresAt) => {
-      const result = await redis.set(`ribaunt:${jti}`, '1', {
-        NX: true,
-        EXAT: expiresAt,
-      });
-      return result === 'OK';
-    },
-  },
-});
-```
-
-</Accordion>
-
-<Accordion title="React wrapper throws an SSR error in Next.js">
-
-**Cause:** The `<ribaunt-widget>` web component registers itself using browser-only APIs such as `customElements` and `window`. These are not available during server-side rendering.
-
-**Fix:** Add `'use client'` at the top of any component file that imports or renders `RibauntWidget`:
-
-```ts
-'use client';
-
-import { RibauntWidget } from 'ribaunt/widget-react';
-```
-
-Do **not** wrap the component with `next/dynamic` — the Ribaunt React wrapper already handles dynamic importing of the browser bundle internally. Adding a second layer of dynamic import can interfere with this mechanism and cause double-loading or hydration mismatches.
-
-</Accordion>
-
+    Do **not** wrap the component with `next/dynamic` — the Ribaunt React wrapper already handles dynamic importing of the browser bundle internally. Adding a second layer of dynamic import can interfere with this mechanism and cause double-loading or hydration mismatches.
+  </Accordion>
 </AccordionGroup>
 
 ## Enabling debug logging
@@ -156,9 +139,5 @@ const valid = await verifySolution(tokens, solutions, {
 In `NODE_ENV=development`, `debug` is enabled by default — you don't need to pass it explicitly during local development. In production, rely on `onWarning` instead of `debug: true` to avoid flooding application logs with low-signal noise.
 
 <Tip>
-  Use the `onWarning` callback in production to capture structured warning
-  reasons (`invalid-token`, `expired-token`, `replay-detected`, etc.) for
-  monitoring without flooding logs. Route warning events to your observability
-  platform (Datadog, Sentry, etc.) to get visibility into unusual patterns
-  without enabling verbose console output.
+  Use the `onWarning` callback in production to capture structured warning reasons (`invalid-token`, `expired-token`, `replay-detected`, etc.) for monitoring without flooding logs. Route warning events to your observability platform (Datadog, Sentry, etc.) to get visibility into unusual patterns without enabling verbose console output.
 </Tip>

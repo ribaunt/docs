@@ -1,5 +1,5 @@
 ---
-title: "createChallenge: Generate Signed PoW Challenge Tokens"
+title: "createChallenge"
 sidebarTitle: "createChallenge"
 description: "createChallenge(difficulty, amount, ttlSeconds) creates signed JWT challenge tokens for proof-of-work verification."
 ---
@@ -24,15 +24,15 @@ function createChallenge(
 
 ## Parameters
 
-<ParamField path="difficulty" type="number" default="5">
+<ParamField path="difficulty" default="5" type="number">
   Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang.
 </ParamField>
 
-<ParamField path="amount" type="number" default="4">
+<ParamField path="amount" default="4" type="number">
   Number of challenge tokens to generate. More challenges increase total proof-of-work but also increase network bandwidth.
 </ParamField>
 
-<ParamField path="ttlSeconds" type="number" default="30">
+<ParamField path="ttlSeconds" default="30" type="number">
   Challenge token lifetime in seconds. Tokens submitted after expiry are rejected by `verifySolution`.
 </ParamField>
 

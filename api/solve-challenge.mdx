@@ -1,5 +1,5 @@
 ---
-title: "solveChallenge — Synchronous PoW Solver for Testing"
+title: "solveChallenge"
 sidebarTitle: "solveChallenge"
 description: "solveChallenge(token, options?) solves JWT challenge tokens synchronously. Use in tests and tooling — not in production request handlers."
 ---
@@ -42,7 +42,7 @@ function solveChallenge(
       Hard cap on nonce attempts per token. Returns `undefined` if reached.
     </ParamField>
 
-    <ParamField path="maxDurationMs" type="number" default="30000">
+    <ParamField path="maxDurationMs" default="30000" type="number">
       Max synchronous solve time in milliseconds per token. Returns `undefined` if exceeded.
     </ParamField>
   </Expandable>

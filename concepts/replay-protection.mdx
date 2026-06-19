@@ -1,5 +1,5 @@
 ---
-title: "Replay Protection in Ribaunt: Local and Remote Modes"
+title: "Replay Protection"
 sidebarTitle: "Replay Protection"
 description: "Learn how Ribaunt prevents challenge token reuse with process-local and remote replay stores, and when to use each mode for your deployment."
 ---
@@ -11,7 +11,7 @@ Once a browser has solved a Ribaunt challenge and your server has accepted the s
 Ribaunt supports three modes for replay prevention, configured via the `replayPrevention` option on `verifySolution()`.
 
 | Mode | Behavior | When to use |
-|---|---|---|
+| --- | --- | --- |
 | `local` (default) | Tracks used tokens in an in-memory `Map` within the current Node.js process | Single-process deployments |
 | `remote` | Delegates to your own distributed store via the `ReplayStore` interface | Serverless functions, horizontally scaled services, multiple Node.js instances |
 | `disabled` | Skips replay checks entirely | Only when another layer already prevents replay, or as a legacy opt-out during migration |
@@ -81,7 +81,7 @@ interface ReplayStore {
 ```
 
 | Parameter | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `jti` | `string` | The unique ID of the challenge token being verified |
 | `expiresAt` | `number` | Unix timestamp in seconds when this token expires |
 

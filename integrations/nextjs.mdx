@@ -1,5 +1,5 @@
 ---
-title: "Integrate Ribaunt CAPTCHA into Next.js (App Router)"
+title: "Next.js"
 sidebarTitle: "Next.js"
 description: "Add Ribaunt CAPTCHA to Next.js using the React wrapper in a client component. Covers App Router setup, SSR guards, and environment variable safety."
 ---
@@ -7,7 +7,7 @@ description: "Add Ribaunt CAPTCHA to Next.js using the React wrapper in a client
 Ribaunt's React wrapper at `ribaunt/widget-react` handles SSR guards automatically by dynamically importing the browser-only web component on the client. Add `'use client'` to your component file, import `RibauntWidget`, and you are ready to go — no extra configuration required.
 
 <Warning>
-  **Never prefix `RIBAUNT_SECRET` with `NEXT_PUBLIC_`.**  
+  **Never prefix `RIBAUNT_SECRET` with `NEXT_PUBLIC_`.**\
   Doing so embeds the secret in your client bundle and exposes it to every visitor. Keep `RIBAUNT_SECRET` in `.env.local` without the `NEXT_PUBLIC_` prefix so it remains exclusively on the server.
 </Warning>
 

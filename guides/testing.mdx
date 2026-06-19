@@ -1,5 +1,5 @@
 ---
-title: "Testing Your Ribaunt CAPTCHA Integration End-to-End"
+title: "Testing"
 sidebarTitle: "Testing"
 description: "Learn how to test your Ribaunt CAPTCHA integration using solveChallenge for end-to-end flows and bypassing the widget in unit tests."
 ---
@@ -25,9 +25,7 @@ console.assert(valid === true);
 ```
 
 <Tip>
-  Use low difficulty (3–4) in tests to keep them fast. Higher difficulty makes
-  CPU-bound tests slow. Difficulty 5 is fine for production but will noticeably
-  slow down test suites.
+  Use low difficulty (3–4) in tests to keep them fast. Higher difficulty makes CPU-bound tests slow. Difficulty 5 is fine for production but will noticeably slow down test suites.
 </Tip>
 
 ## Testing with timeout guardrails
@@ -71,14 +69,12 @@ const valid = await verifySolution(tokens, solutions, {
 ```
 
 <Note>
-  Only use `replayPrevention: 'disabled'` in tests. Never disable replay
-  protection in your production verify endpoint, as it allows attackers to reuse
-  intercepted solutions.
+  Only use `replayPrevention: 'disabled'` in tests. Never disable replay protection in your production verify endpoint, as it allows attackers to reuse intercepted solutions.
 </Note>
 
 ## Capturing verification warnings
 
-When you want to assert *why* a verification failed — not just that it returned `false` — use the `onWarning` callback. This is especially useful for testing edge cases like expired tokens or invalid solutions.
+When you want to assert _why_ a verification failed — not just that it returned `false` — use the `onWarning` callback. This is especially useful for testing edge cases like expired tokens or invalid solutions.
 
 ```ts
 const warnings: string[] = [];
@@ -93,7 +89,7 @@ const valid = await verifySolution(tokens, badSolutions, {
 The `reason` field on the warning object can be one of the following values:
 
 | Reason | When it fires |
-|---|---|
+| --- | --- |
 | `invalid-token` | The JWT is malformed, tampered with, or uses an unknown secret |
 | `expired-token` | The challenge's TTL has elapsed before the solution was submitted |
 | `invalid-solution` | The submitted nonce does not produce a hash with the required leading zeros |
@@ -101,6 +97,5 @@ The `reason` field on the warning object can be one of the following values:
 | `configuration-error` | A required option (e.g. `replayStore`) is missing or misconfigured |
 
 <Warning>
-  `solveChallenge` is synchronous and CPU-intensive. Don't use it in production
-  request handlers — it's designed for tests and tooling only.
+  `solveChallenge` is synchronous and CPU-intensive. Don't use it in production request handlers — it's designed for tests and tooling only.
 </Warning>

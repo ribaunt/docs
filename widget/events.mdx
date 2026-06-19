@@ -1,5 +1,5 @@
 ---
-title: "Ribaunt Widget Events: verify, error, and state-change"
+title: "Events"
 sidebarTitle: "Events"
 description: "Reference for all events emitted by ribaunt-widget: verify, error, and state-change. Includes React callback prop equivalents and event detail types."
 ---
@@ -44,7 +44,7 @@ widget.addEventListener('error', (e) => {
 **React equivalent:** `onError={(detail) => ...}`
 
 <Note>
-The `timeout` field is only present in the event detail when `solve-timeout` is configured and the solving duration exceeds that limit. When present it is always `true`.
+  The `timeout` field is only present in the event detail when `solve-timeout` is configured and the solving duration exceeds that limit. When present it is always `true`.
 </Note>
 
 ## `state-change`
@@ -92,7 +92,7 @@ Two additional callbacks are available in the React wrapper that have no corresp
 The widget moves through a defined set of states during its lifecycle. You will encounter these state strings in `state-change` events and in the return value of `getState()`:
 
 | State | Description |
-|---|---|
+| --- | --- |
 | `initial` | Widget has loaded, waiting for user click or auto-verify |
 | `verifying` | Solver is running (proof-of-work in progress) |
 | `done` | Challenge solved and verified successfully |

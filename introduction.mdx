@@ -1,5 +1,5 @@
 ---
-title: "Ribaunt: Stateless Proof-of-Work CAPTCHA for Node.js"
+title: "Welcome!"
 sidebarTitle: "Introduction"
 description: "Learn what Ribaunt is, how proof-of-work CAPTCHA protects your forms and APIs, and what makes Ribaunt stateless and easy to integrate."
 ---
@@ -18,18 +18,23 @@ For a deeper look at the cryptographic details and replay protection strategies,
   <Card title="Stateless" icon="database">
     Challenges are signed JWTs — no database, cache, or shared session store needed to issue or verify them.
   </Card>
+
   <Card title="Browser widget" icon="window">
     A built-in Web Component works with plain HTML. A React wrapper (`ribaunt/widget-react`) integrates with React and Next.js.
   </Card>
+
   <Card title="Replay protection" icon="shield-check">
     Local (process-level) replay protection is on by default. For serverless or multi-instance deployments, plug in a Redis/Valkey store.
   </Card>
+
   <Card title="Fully typed" icon="brackets-curly">
     Written in TypeScript with full type declarations included. No `@types` package needed.
   </Card>
+
   <Card title="Configurable difficulty" icon="sliders">
     Tune `difficulty`, `amount`, and `ttlSeconds` per endpoint to balance security and user experience.
   </Card>
+
   <Card title="Themeable" icon="palette">
     Style the widget with CSS custom properties — match any design system without touching shadow DOM internals.
   </Card>
@@ -40,17 +45,19 @@ For a deeper look at the cryptographic details and replay protection strategies,
 Install Ribaunt from npm using your preferred package manager.
 
 <CodeGroup>
-  ```bash npm
-  npm install ribaunt
-  ```
 
-  ```bash yarn
-  yarn add ribaunt
-  ```
+```bash npm
+npm install ribaunt
+```
 
-  ```bash pnpm
-  pnpm add ribaunt
-  ```
+```bash yarn
+yarn add ribaunt
+```
+
+```bash pnpm
+pnpm add ribaunt
+```
+
 </CodeGroup>
 
 <Note>
@@ -63,6 +70,7 @@ Install Ribaunt from npm using your preferred package manager.
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Set up your secret, create server endpoints, and add the widget to your page in under five minutes.
   </Card>
+
   <Card title="How it works" icon="magnifying-glass" href="/concepts/how-it-works">
     Understand the full proof-of-work flow, JWT challenge structure, and replay prevention in depth.
   </Card>
