@@ -1,0 +1,106 @@
+---
+title: "Testing Your Ribaunt CAPTCHA Integration End-to-End"
+sidebarTitle: "Testing"
+description: "Learn how to test your Ribaunt CAPTCHA integration using solveChallenge for end-to-end flows and bypassing the widget in unit tests."
+---
+
+Ribaunt provides `solveChallenge()` — a synchronous, server-side solver — that makes it easy to write automated tests for your challenge and verify endpoints without a browser. Rather than standing up a headless browser or mocking internal state, you can drive the full challenge → solve → verify cycle directly from your test suite.
+
+## Using solveChallenge in tests
+
+`solveChallenge` runs the same proof-of-work algorithm the browser executes, but synchronously and in Node.js. You can generate a challenge on your server, solve it as a client would, and then feed the result into `verifySolution` — all within a single test.
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Generate a challenge (as your server would)
+const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
+
+// Solve it (as the browser would)
+const solutions = solveChallenge(tokens);
+
+// Verify the solution (as your verify endpoint would)
+const valid = await verifySolution(tokens, solutions);
+console.assert(valid === true);
+```
+
+<Tip>
+  Use low difficulty (3–4) in tests to keep them fast. Higher difficulty makes
+  CPU-bound tests slow. Difficulty 5 is fine for production but will noticeably
+  slow down test suites.
+</Tip>
+
+## Testing with timeout guardrails
+
+When you need a safety net against a runaway solver in CI, pass guardrail options to `solveChallenge`. You can cap the wall-clock time, the number of hash attempts, or both.
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,    // Give up after 2 seconds
+  maxIterations: 500_000, // Or after 500k attempts
+});
+```
+
+If either guardrail is reached, `solveChallenge` returns `undefined` for that token. Your test should assert the return value is defined before passing it to `verifySolution`.
+
+## Testing replay protection
+
+Ribaunt's default `local` replay mode blocks any token from being verified more than once within the same process. You can confirm this behavior directly in your tests by submitting the same solution twice.
+
+```ts
+const tokens = createChallenge(3, 2, 30);
+const solutions = solveChallenge(tokens);
+
+const first = await verifySolution(tokens, solutions);
+console.assert(first === true);  // Passes
+
+const second = await verifySolution(tokens, solutions);
+console.assert(second === false); // Rejected — replay detected
+```
+
+The second call returns `false` because the challenge JTIs are consumed on first use.
+
+## Testing with disabled replay protection
+
+Some unit tests need to reuse the same tokens across multiple assertions — for example, testing that a valid solution always passes your business logic regardless of replay state. You can disable replay protection for a single `verifySolution` call.
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'disabled',
+});
+```
+
+<Note>
+  Only use `replayPrevention: 'disabled'` in tests. Never disable replay
+  protection in your production verify endpoint, as it allows attackers to reuse
+  intercepted solutions.
+</Note>
+
+## Capturing verification warnings
+
+When you want to assert *why* a verification failed — not just that it returned `false` — use the `onWarning` callback. This is especially useful for testing edge cases like expired tokens or invalid solutions.
+
+```ts
+const warnings: string[] = [];
+
+const valid = await verifySolution(tokens, badSolutions, {
+  onWarning: (w) => warnings.push(w.reason),
+});
+
+// warnings will contain 'invalid-solution' etc.
+```
+
+The `reason` field on the warning object can be one of the following values:
+
+| Reason | When it fires |
+|---|---|
+| `invalid-token` | The JWT is malformed, tampered with, or uses an unknown secret |
+| `expired-token` | The challenge's TTL has elapsed before the solution was submitted |
+| `invalid-solution` | The submitted nonce does not produce a hash with the required leading zeros |
+| `replay-detected` | The same token JTI has already been consumed by the replay store |
+| `configuration-error` | A required option (e.g. `replayStore`) is missing or misconfigured |
+
+<Warning>
+  `solveChallenge` is synchronous and CPU-intensive. Don't use it in production
+  request handlers — it's designed for tests and tooling only.
+</Warning>

@@ -1,0 +1,145 @@
+---
+title: "Integrate Ribaunt PoW CAPTCHA with Express.js Server"
+sidebarTitle: "Express"
+description: "Set up challenge generation and solution verification endpoints in an Express.js server using Ribaunt's createChallenge and verifySolution functions."
+---
+
+This guide walks you through adding two Ribaunt CAPTCHA endpoints to an Express.js server: one that issues signed proof-of-work challenges to the client, and one that verifies the solved solutions before you trust the request. Both endpoints are stateless — Ribaunt encodes all challenge state inside a signed JWT, so no database is required.
+
+## Prerequisites
+
+- Node.js 18 or later
+- `express` and `ribaunt` installed in your project
+- A `RIBAUNT_SECRET` environment variable set to a strong random string
+
+<Steps>
+
+### Install dependencies
+
+Install Express and Ribaunt together if you haven't already:
+
+```bash
+npm install express ribaunt
+```
+
+### Create the challenge endpoint
+
+Add a `GET /api/captcha/challenge` handler that calls `createChallenge` and returns the tokens to the client.
+
+```ts
+import { createChallenge } from 'ribaunt';
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+```
+
+`createChallenge` accepts three positional arguments:
+
+| Parameter    | Value | Meaning                                                  |
+| ------------ | ----- | -------------------------------------------------------- |
+| `difficulty` | `5`   | Number of leading zeros required in the SHA-256 hash    |
+| `amount`     | `4`   | Number of individual challenge tokens to generate       |
+| `ttlSeconds` | `120` | Seconds until each token expires (encoded in the JWT)   |
+
+The function returns an array of signed JWT strings. Pass the entire array back to the client as `{ challenges }`.
+
+### Create the verify endpoint
+
+Add a `POST /api/captcha/verify` handler that reads `tokens` and `solutions` from the request body, then calls `verifySolution`.
+
+```ts
+import { verifySolution } from 'ribaunt';
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+```
+
+`verifySolution` is asynchronous and returns a `Promise<boolean>`. It validates the JWT signature, checks that the hash meets the required difficulty, confirms the token has not expired, and (by default) records the token's `jti` in a process-local store to block replays.
+
+### Full server example
+
+The following `server.ts` file combines both endpoints with standard Express boilerplate:
+
+```ts
+import 'dotenv/config';
+import express from 'express';
+import { createChallenge, verifySolution } from 'ribaunt';
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(express.json());
+
+if (!process.env.RIBAUNT_SECRET) {
+  console.warn('WARNING: RIBAUNT_SECRET environment variable is not set!');
+}
+
+app.get('/api/captcha/challenge', (_req, res) => {
+  try {
+    const challenges = createChallenge(5, 4, 120);
+    res.json({ challenges });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+
+app.post('/api/captcha/verify', async (req, res) => {
+  const { tokens, solutions } = req.body;
+
+  if (!tokens || !solutions) {
+    return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
+  }
+
+  const isValid = await verifySolution(tokens, solutions, {
+    onWarning: (warning) => {
+      console.log('captcha warning', warning.reason, warning.message);
+    },
+  });
+
+  if (isValid) {
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
+});
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+```
+
+</Steps>
+
+## Best practices
+
+- **Rate limit the challenge endpoint.** Use [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit) to cap how many challenges a single IP can request per minute. Without this, an attacker can farm tokens for offline brute-forcing.
+- **Link verification to a session.** After a successful `verifySolution` call, return a signed JWT or set an HTTP-only cookie. Require that token on your protected form submission endpoint so you know the CAPTCHA was solved by the same user making the downstream request.
+- **Validate inputs before calling `createChallenge`.** If `difficulty`, `amount`, or `ttlSeconds` come from config or request data, check that they are positive finite integers first — invalid values throw.
+- **Use `replayPrevention: 'remote'` for multi-instance or serverless deployments.** The default `'local'` store is per-process, so it cannot detect replays across separate Node.js processes. Pass a distributed store adapter (e.g. backed by Redis) and set `replayPrevention: 'remote'` in your `verifySolution` options.
+- **Use `onWarning` for telemetry.** The `onWarning` callback receives a structured `VerifyWarning` object with a typed `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'`, etc.) and a human-readable `message`. Wire it to your observability pipeline without enabling verbose debug logs in production.
+
+<Warning>
+  Validate any user- or config-controlled `difficulty`, `amount`, and `ttlSeconds` values before
+  passing them to `createChallenge()`. Invalid values throw.
+</Warning>

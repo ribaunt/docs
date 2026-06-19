@@ -1,0 +1,157 @@
+---
+title: "Add Ribaunt CAPTCHA to Plain HTML Pages Without a Framework"
+sidebarTitle: "HTML / Vanilla JS"
+description: "Embed the Ribaunt CAPTCHA web component in any HTML page without a framework. Listen for verify and error events to control form submission."
+---
+
+`<ribaunt-widget>` is a standard Web Component that works in any modern browser without a framework. You load a single ES module script, drop the element into your markup, and wire up a couple of event listeners — no build step required.
+
+<Note>
+  The widget relies on the Web Crypto API, which is only available in a **secure context**. Use `https://` in production and `http://localhost` during local development. Plain local-network URLs such as `http://192.168.x.x` will not work.
+</Note>
+
+## Steps
+
+<Steps>
+  ### Load the widget script
+
+  Add the widget's ES module as a `<script type="module">` tag in your `<head>`. Adjust the path to match wherever you serve your `node_modules` or bundled output.
+
+  ```html
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+  ```
+
+  ### Add the `<ribaunt-widget>` element
+
+  Place the element inside your form. Use the `challenge-endpoint`, `verify-endpoint`, and `auto-verify` attributes to configure it.
+
+  ```html
+  <ribaunt-widget
+    id="captcha"
+    challenge-endpoint="/api/captcha/challenge"
+    verify-endpoint="/api/captcha/verify"
+    auto-verify="true"
+    solve-timeout="15000"
+  ></ribaunt-widget>
+  ```
+
+  ### Listen for the `verify` event
+
+  When the widget successfully verifies the user it fires a `verify` event. Use it to enable your submit button or proceed with your form logic.
+
+  ```html
+  <script>
+    document.getElementById('captcha').addEventListener('verify', (e) => {
+      console.log('Verified!', e.detail.solutions);
+      document.getElementById('submit-btn').disabled = false;
+    });
+  </script>
+  ```
+
+  ### Handle the `error` event
+
+  If verification fails — including a solve timeout — the widget fires an `error` event. Keep the submit button disabled and inform the user.
+
+  ```html
+  <script>
+    document.getElementById('captcha').addEventListener('error', (e) => {
+      console.error('CAPTCHA failed:', e.detail.error);
+      if (e.detail.timeout) {
+        console.warn('Solving timed out — please try again.');
+      }
+      document.getElementById('submit-btn').disabled = true;
+    });
+  </script>
+  ```
+</Steps>
+
+## Complete example
+
+The snippet below brings all four steps together into a single self-contained HTML page.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Secure Form</title>
+  <!-- Adjust the path to match your static file hosting -->
+  <script type="module" src="/path/to/ribaunt/dist/widget-browser.js"></script>
+</head>
+<body>
+  <form id="secure-form" action="/api/submit" method="POST">
+    <h2>Please verify you are human</h2>
+
+    <ribaunt-widget
+      id="captcha"
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+      auto-verify="true"
+      solve-timeout="15000"
+    ></ribaunt-widget>
+
+    <!-- Keep disabled until the verify event fires -->
+    <button type="submit" id="submit-btn" disabled>Submit</button>
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const widget    = document.getElementById('captcha');
+      const submitBtn = document.getElementById('submit-btn');
+
+      widget.addEventListener('verify', (e) => {
+        console.log('User verified!', e.detail.solutions);
+        submitBtn.disabled = false;
+      });
+
+      widget.addEventListener('error', (e) => {
+        console.error('CAPTCHA failed:', e.detail.error);
+        if (e.detail.timeout) {
+          console.warn('Solving timed out — try again.');
+        }
+        submitBtn.disabled = true;
+      });
+
+      // Optional: react to intermediate state transitions
+      widget.addEventListener('state-change', (e) => {
+        console.log('Widget state:', e.detail.state);
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+## Styling the widget
+
+The widget's internals are encapsulated inside a Shadow DOM, so standard descendant selectors cannot reach them. You can, however, override CSS custom properties scoped to the host element.
+
+```css
+#captcha {
+  /* Override widget theme variables */
+  --ribaunt-background: #f0f0f0;
+  --ribaunt-border-color: #ccc;
+
+  /* Standard CSS applies to the host element itself */
+  margin: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+```
+
+## Attribute reference
+
+The most commonly used attributes are listed below. For the complete list of attributes, accepted values, and defaults, see [Widget configuration](/widget/configuration).
+
+| Attribute | Description |
+|---|---|
+| `challenge-endpoint` | URL the widget fetches challenges from. |
+| `verify-endpoint` | URL the widget posts solutions to. |
+| `auto-verify` | When present, the widget starts solving immediately after load without requiring a click. |
+| `show-warning` | When present, displays a warning banner above the widget. |
+| `warning-message` | Custom text for the warning banner shown when `show-warning` is set. |
+| `solve-timeout` | Maximum milliseconds allowed for solving before an `error` event fires. Omit to disable the timeout. |
+| `disabled` | Blocks all user interaction **and** programmatic `startVerification()` calls. |
+
+<Note>
+  A `disabled` widget will not start verification from `auto-verify` either. Remove the `disabled` attribute before expecting the widget to run.
+</Note>

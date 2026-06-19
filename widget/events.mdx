@@ -1,0 +1,99 @@
+---
+title: "Ribaunt Widget Events: verify, error, and state-change"
+sidebarTitle: "Events"
+description: "Reference for all events emitted by ribaunt-widget: verify, error, and state-change. Includes React callback prop equivalents and event detail types."
+---
+
+The `<ribaunt-widget>` emits three DOM custom events — `verify`, `error`, and `state-change` — that you can listen to with `addEventListener` on the element. In React, use the typed callback props instead of `addEventListener`; the wrapper wires up and tears down listeners for you automatically.
+
+## `verify`
+
+The `verify` event is dispatched when the widget successfully solves all challenges and, if you provided a `verify-endpoint`, the server confirms the solutions are valid. If no `verify-endpoint` is set, the event fires as soon as local proof-of-work is complete.
+
+**Event type:** `CustomEvent<{ solutions: ChallengeSolution[] }>`
+
+Where `ChallengeSolution = { nonce: string; hash: string }`.
+
+```js
+widget.addEventListener('verify', (e) => {
+  const { solutions } = e.detail;
+  console.log('Verified! Solutions:', solutions);
+  // Enable submit button, proceed with form, etc.
+});
+```
+
+**React equivalent:** `onVerify={(detail) => ...}`
+
+## `error`
+
+The `error` event is dispatched when the widget encounters a failure at any stage — fetching tokens from your challenge endpoint, running the proof-of-work solver, or receiving a non-OK response from your verify endpoint.
+
+**Event type:** `CustomEvent<{ error: string; timeout?: boolean }>`
+
+```js
+widget.addEventListener('error', (e) => {
+  const { error, timeout } = e.detail;
+  if (timeout) {
+    console.warn('Timed out:', error);
+  } else {
+    console.error('CAPTCHA failed:', error);
+  }
+});
+```
+
+**React equivalent:** `onError={(detail) => ...}`
+
+<Note>
+The `timeout` field is only present in the event detail when `solve-timeout` is configured and the solving duration exceeds that limit. When present it is always `true`.
+</Note>
+
+## `state-change`
+
+The `state-change` event is dispatched every time the widget transitions between internal states. You can use this to mirror the widget's visual state in your own UI — for example, disabling a submit button while verification is in progress.
+
+**Event type:** `CustomEvent<{ state: 'initial' | 'verifying' | 'done' | 'error' }>`
+
+```js
+widget.addEventListener('state-change', (e) => {
+  const { state } = e.detail;
+  // 'initial' | 'verifying' | 'done' | 'error'
+});
+```
+
+**React equivalent:** `onStateChange={(detail) => ...}`
+
+## React callback props
+
+When you use the React wrapper, you can pass all callbacks directly as props. The wrapper maintains stable event listener references across re-renders so your callbacks always receive the latest closure values:
+
+```tsx
+<RibauntWidget
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+  onVerify={(detail) => console.log('Solutions:', detail.solutions)}
+  onError={(detail) => console.error('Error:', detail.error)}
+  onStateChange={(detail) => console.log('State:', detail.state)}
+  onReady={(detail) => console.log('Ready with state:', detail.state)}
+  onLoad={(detail) => console.log('Widget loaded:', detail.state)}
+  onEvent={(type, detail) => console.log('Event:', type, detail)}
+/>
+```
+
+## React-only events
+
+Two additional callbacks are available in the React wrapper that have no corresponding DOM custom event on the web component:
+
+- **`onReady`** — fires once after the widget mounts, with the initial widget state in the detail payload. Use this to know when the widget is ready for interaction.
+- **`onLoad`** — functionally identical to `onReady`. It is provided as an alias for backward compatibility if you were already using `onLoad` in an earlier version.
+- **`onEvent`** — a catch-all handler that fires for every event type (`'verify'`, `'error'`, `'state-change'`, and `'ready'`), along with the event's detail object. Use this if you want a single place to handle or log all widget events.
+
+## Widget states
+
+The widget moves through a defined set of states during its lifecycle. You will encounter these state strings in `state-change` events and in the return value of `getState()`:
+
+| State | Description |
+|---|---|
+| `initial` | Widget has loaded, waiting for user click or auto-verify |
+| `verifying` | Solver is running (proof-of-work in progress) |
+| `done` | Challenge solved and verified successfully |
+| `error` | An error occurred during fetch, solve, or verify |

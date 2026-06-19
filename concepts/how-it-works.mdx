@@ -1,0 +1,102 @@
+---
+title: "How Ribaunt Proof-of-Work CAPTCHA Challenge Flow Works"
+sidebarTitle: "How It Works"
+description: "Understand the proof-of-work challenge-response flow behind Ribaunt: JWT challenge issuance, browser solving with Web Crypto, and server-side verification."
+---
+
+Ribaunt protects your forms and sensitive actions by making the browser perform a small but measurable amount of computational work before your server accepts a submission. Unlike traditional CAPTCHAs, this happens silently in the background: your server issues a cryptographic puzzle, the browser grinds through SHA-256 hashes until it finds a valid answer, and your server checks the proof before proceeding. No image grids, no checkbox rituals — just math.
+
+## The challenge-response flow
+
+Every Ribaunt verification follows a three-step cycle.
+
+<Steps>
+  <Step title="Server issues challenge tokens">
+    Your server calls `createChallenge()`, which produces an array of signed JWT tokens. Each token encodes a random challenge string, the difficulty level (how many leading zeros the winning hash must start with), an expiry timestamp, and a unique token ID (`jti`) for replay prevention. The tokens are signed with your `RIBAUNT_SECRET`, so they cannot be forged or tampered with by the client.
+
+    ```ts
+    import { createChallenge } from 'ribaunt';
+
+    // Issue 4 challenges at difficulty 5, valid for 60 seconds
+    const challenges = createChallenge(5, 4, 60);
+    ```
+  </Step>
+  <Step title="Browser solves the challenges">
+    The browser receives the tokens and runs the solver. For each token it decodes the challenge string and difficulty, then iterates through candidate nonces — `0`, `1`, `2`, … — computing `SHA-256(challenge + nonce)` for each one using the Web Crypto API. The moment it finds a nonce whose hash starts with the required number of leading zeros, it records that nonce and hash as the solution and moves on to the next token.
+  </Step>
+  <Step title="Server verifies the solutions">
+    The browser submits the original tokens alongside the solutions it found. Your server calls `verifySolution()`, which:
+
+    - Verifies the JWT signature with `RIBAUNT_SECRET`
+    - Checks that the token has not expired
+    - Recomputes `SHA-256(challenge + nonce)` and confirms it starts with the required leading zeros
+    - Checks the `jti` against the replay store to ensure the token has never been used before
+
+    Only if every check passes does `verifySolution()` return `true`.
+
+    ```ts
+    import { verifySolution } from 'ribaunt';
+
+    const valid = await verifySolution(tokens, solutions);
+
+    if (!valid) {
+      return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
+    }
+    ```
+  </Step>
+</Steps>
+
+## Challenge tokens
+
+Each challenge token is a standard signed JWT. When decoded, its payload contains:
+
+| Field | Description |
+|---|---|
+| `challenge` | A random base64 string generated fresh for each token |
+| `difficulty` | The number of leading zeros the SHA-256 hash must start with |
+| `expires` | A Unix timestamp (seconds) after which the token is rejected |
+| `jti` | A UUID that uniquely identifies this token, used for replay prevention |
+
+The tokens are signed with `RIBAUNT_SECRET`, an environment variable you set on your server. Your server is the only party that can produce or validate tokens — the browser only ever sees the signed, opaque JWT.
+
+<Note>
+  Never expose `RIBAUNT_SECRET` to the browser. In Next.js, do not prefix it with `NEXT_PUBLIC_`.
+</Note>
+
+## Difficulty
+
+The `difficulty` parameter controls how many leading zeros the winning hash must have. Because each additional zero cuts the probability of a random hash qualifying by a factor of 16, every increment roughly doubles the expected number of hash attempts — and therefore the solve time.
+
+| Setting | Approximate solve time | Recommended use |
+|---|---|---|
+| `createChallenge(4, 4, 30)` | Milliseconds | Fast / background checks |
+| `createChallenge(5, 4, 60)` | ~1 second | Moderate / form submission |
+| `createChallenge(5, 8, 120)` | ~2 seconds | High / sensitive actions |
+
+<Warning>
+  Values above `6` may cause browsers to hang. Do not let users or external input control `difficulty`, `amount`, or `ttlSeconds` without validation.
+</Warning>
+
+## Stateless design
+
+Ribaunt does not require a database to issue or verify challenges. All the information the server needs to verify a solution — the challenge string, the required difficulty, and the expiry — is encoded directly in the signed JWT token. Verification reduces to checking the JWT signature and recomputing the hash; no round-trips to a data store are necessary for the core proof check.
+
+Replay protection is the one area that requires state. Without it, a single valid solution could be resubmitted repeatedly within the token's TTL window. Ribaunt handles this with a lightweight replay store:
+
+- In the default `local` mode, an in-process `Map` tracks used token IDs within the current Node.js process.
+- In `remote` mode, you supply a distributed store (such as Redis or Valkey) so that multiple processes or serverless function instances share a consistent view of which tokens have already been consumed.
+
+This keeps your server infrastructure simple — no session tables, no challenge databases — while still providing the replay protection that makes the scheme secure.
+
+<Note>
+  For more detail on configuring replay protection, including a full Redis example, see [Replay Protection](/concepts/replay-protection).
+</Note>
+
+## Secure context requirement
+
+The browser solver uses the Web Crypto API (`crypto.subtle`), which browsers only expose in [secure contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts). This means client-side solving works on:
+
+- `https://` origins (production)
+- `http://localhost` (local development)
+
+Plain LAN addresses such as `http://192.168.x.x` may not expose `crypto.subtle`, especially on mobile browsers. Always serve your application over HTTPS in production.

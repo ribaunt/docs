@@ -1,0 +1,104 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Ribaunt",
+  "projectDescription": "A stateless proof-of-work CAPTCHA library for Node.js and modern browsers that issues signed JWT challenges from your server, solves them in the browser, and verifies submitted proofs without storing state.",
+  "theme": "luma",
+  "primaryColor": "#7c7c7c",
+  "lightColor": "#050505",
+  "darkColor": "#c1c1c1",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/replay-protection"
+            ]
+          },
+          {
+            "group": "Server Setup",
+            "pages": [
+              "server/express",
+              "server/nextjs"
+            ]
+          },
+          {
+            "group": "Frontend Integration",
+            "pages": [
+              "integrations/html",
+              "integrations/react",
+              "integrations/nextjs",
+              "integrations/vue"
+            ]
+          },
+          {
+            "group": "Widget",
+            "pages": [
+              "widget/configuration",
+              "widget/events",
+              "widget/theming"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/testing",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server API",
+            "pages": [
+              "api/create-challenge",
+              "api/verify-solution",
+              "api/solve-challenge"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Stateless challenge tokens signed with RIBAUNT_SECRET — no database required",
+    "Proof-of-work solver runs entirely in the browser using the Web Crypto API",
+    "Built-in `<ribaunt-widget>` Web Component for plain HTML apps",
+    "React and Next.js wrapper via `ribaunt/widget-react` with typed callback props",
+    "Process-local replay protection by default; pluggable remote store (Redis/Valkey) for serverless deployments",
+    "Configurable difficulty, challenge count, and TTL",
+    "CSS custom properties for full widget theming and dark mode support",
+    "TypeScript types included across all entry points"
+  ],
+  "publicApiSurface": [
+    "createChallenge(difficulty, amount, ttlSeconds): ChallengeToken[]",
+    "verifySolution(tokens, solutions, options?): Promise<boolean>",
+    "solveChallenge(token, options?): ChallengeSolution | ChallengeSolution[] | undefined",
+    "RibauntWidget (Web Component: <ribaunt-widget>)",
+    "RibauntWidget (React: ribaunt/widget-react default export)",
+    "ReplayStore interface: { consume(jti, expiresAt): Promise<boolean> }",
+    "VerifySolutionOptions: { replayPrevention, replayStore, debug, onWarning }",
+    "SolveChallengeOptions: { maxIterations, maxDurationMs }",
+    "Widget events: verify, error, state-change",
+    "Widget attributes: challenge-endpoint, verify-endpoint, auto-verify, show-warning, warning-message, solve-timeout, disabled"
+  ]
+}

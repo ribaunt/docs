@@ -1,0 +1,80 @@
+---
+title: "createChallenge: Generate Signed PoW Challenge Tokens"
+sidebarTitle: "createChallenge"
+description: "createChallenge(difficulty, amount, ttlSeconds) creates signed JWT challenge tokens for proof-of-work verification."
+---
+
+`createChallenge()` is imported from `ribaunt` and called server-side to generate one or more proof-of-work challenge tokens. Each token is a signed JWT that the browser solver decodes and works against.
+
+## Import
+
+```ts
+import { createChallenge } from 'ribaunt';
+```
+
+## Signature
+
+```ts
+function createChallenge(
+  difficulty?: number,
+  amount?: number,
+  ttlSeconds?: number
+): ChallengeToken[]
+```
+
+## Parameters
+
+<ParamField path="difficulty" type="number" default="5">
+  Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang.
+</ParamField>
+
+<ParamField path="amount" type="number" default="4">
+  Number of challenge tokens to generate. More challenges increase total proof-of-work but also increase network bandwidth.
+</ParamField>
+
+<ParamField path="ttlSeconds" type="number" default="30">
+  Challenge token lifetime in seconds. Tokens submitted after expiry are rejected by `verifySolution`.
+</ParamField>
+
+## Return value
+
+Returns `ChallengeToken[]` — an array of signed JWT strings. Send this array to the browser as `{ challenges: tokens }`.
+
+## Example
+
+```ts
+import { createChallenge } from 'ribaunt';
+
+// Fast: low difficulty, short TTL (login forms, comment boxes)
+const fast = createChallenge(4, 4, 30);
+
+// Moderate: standard configuration for most use cases
+const moderate = createChallenge(5, 4, 120);
+
+// High: sensitive actions (account creation, password reset)
+const high = createChallenge(5, 8, 120);
+```
+
+## Recommended settings
+
+| Use case | Difficulty | Amount | TTL |
+| --- | --- | --- | --- |
+| Fast / background | 4 | 4 | 30 |
+| Moderate / form submission | 5 | 4 | 60 |
+| High / sensitive actions | 5 | 8 | 120 |
+
+## Validation
+
+`createChallenge()` validates all three parameters at runtime and throws if any value is invalid:
+
+- **`difficulty`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
+- **`amount`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
+- **`ttlSeconds`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
+
+<Warning>
+  Never let user-controlled request parameters flow directly into `createChallenge()` without validation.
+</Warning>
+
+<Note>
+  Requires `RIBAUNT_SECRET` to be set as an environment variable. `createChallenge()` will throw if the secret is missing.
+</Note>

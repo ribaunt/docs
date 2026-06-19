@@ -1,0 +1,92 @@
+---
+title: "Customize Ribaunt Widget Appearance with CSS Variables"
+sidebarTitle: "Theming"
+description: "Style the ribaunt-widget using CSS custom properties. Covers all variables for colors, dimensions, borders, spinner, and dark mode implementation."
+---
+
+The `<ribaunt-widget>` uses Shadow DOM for style encapsulation, which means external stylesheets cannot accidentally bleed into the widget's internals. You can still customize its entire appearance by setting CSS custom properties (variables) on the `ribaunt-widget` host element — Shadow DOM inherits these from the outside, so your overrides flow through cleanly.
+
+## Quick start
+
+The following four variables are enough for a minimal dark theme:
+
+```css
+ribaunt-widget {
+  --ribaunt-background: #1e1e1e;
+  --ribaunt-border-color: #444;
+  --ribaunt-color: #f0f0f0;
+  --ribaunt-spinner-color: #f0f0f0;
+}
+```
+
+## CSS variables reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `--ribaunt-background` | `#fdfdfd` | Widget container background |
+| `--ribaunt-border-color` | `#dddddd8f` | Widget border color |
+| `--ribaunt-border-radius` | `14px` | Widget border radius |
+| `--ribaunt-color` | `#212121` | Text color |
+| `--ribaunt-widget-width` | `230px` | Widget width |
+| `--ribaunt-widget-height` | `58px` | Widget height |
+| `--ribaunt-widget-padding` | `14px` | Widget inner padding |
+| `--ribaunt-gap` | `15px` | Gap between checkbox and text |
+| `--ribaunt-checkbox-size` | `25px` | Checkbox width and height |
+| `--ribaunt-checkbox-background` | `#fafafa91` | Checkbox background color |
+| `--ribaunt-checkbox-border` | `1px solid #aaaaaad1` | Checkbox border |
+| `--ribaunt-checkbox-border-radius` | `6px` | Checkbox border radius |
+| `--ribaunt-checkbox-margin` | `2px` | Checkbox top/bottom margin |
+| `--ribaunt-spinner-color` | `#000` | Active spinner segment color |
+| `--ribaunt-spinner-background-color` | `#eee` | Inactive spinner track color |
+| `--ribaunt-spinner-thickness` | `5px` | Spinner ring thickness |
+| `--ribaunt-checkmark` | Built-in green checkmark | Success checkmark SVG URL |
+| `--ribaunt-error-cross` | Built-in red warning icon | Error cross icon SVG URL |
+| `--ribaunt-logo-color` | `#666` | Color of the Ribaunt logo |
+| `--ribaunt-font` | system sans-serif | Font stack |
+
+## Dark mode
+
+Ribaunt does not enforce an automatic dark mode. Instead, you bind it yourself — either via a media query that responds to the OS preference, or via a CSS class that your application controls.
+
+### Using a media query
+
+```css
+@media (prefers-color-scheme: dark) {
+  ribaunt-widget {
+    --ribaunt-background: #2d2d2d;
+    --ribaunt-border-color: #555;
+    --ribaunt-color: #ffffff;
+    --ribaunt-checkbox-background: #444;
+    --ribaunt-spinner-color: #ffffff;
+    --ribaunt-spinner-background-color: #333;
+    --ribaunt-logo-color: #cccccc;
+  }
+}
+```
+
+### Using a CSS class
+
+If your app has its own dark-mode toggle that adds a class to a parent element (such as `<html class="dark">`), you can scope the overrides to that class:
+
+```css
+.dark ribaunt-widget {
+  --ribaunt-background: #111;
+  --ribaunt-color: #eee;
+}
+```
+
+## Custom dimensions
+
+You can resize the widget to fit your form layout by overriding the dimension variables. The example below creates a `.large` variant:
+
+```css
+ribaunt-widget.large {
+  --ribaunt-widget-width: 300px;
+  --ribaunt-widget-height: 72px;
+  --ribaunt-checkbox-size: 32px;
+}
+```
+
+<Tip>
+Standard CSS properties like `margin`, `box-shadow`, and `display` work directly on the `ribaunt-widget` host element since it's an inline-block custom element. You do not need a wrapper `<div>` just to apply spacing or shadows.
+</Tip>

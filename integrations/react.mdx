@@ -1,0 +1,133 @@
+---
+title: "Integrate Ribaunt CAPTCHA into Your React Application"
+sidebarTitle: "React"
+description: "Use the RibauntWidget React wrapper to add CAPTCHA to your React app with typed callback props, imperative ref handle, and live prop syncing."
+---
+
+Ribaunt ships a first-class React wrapper at `ribaunt/widget-react` that gives you typed props, callback props for every widget event, and an imperative ref handle — no manual DOM event wiring needed. The wrapper also handles dynamic importing internally, so you never need to worry about SSR guard boilerplate even when using it in a Next.js App Router component.
+
+<Note>
+  The widget relies on the Web Crypto API and therefore requires a **secure context**. Use `https://` in production and `http://localhost` during local development. Plain local-network HTTP URLs may fail in some browsers.
+</Note>
+
+## Using the React wrapper (recommended)
+
+Import `RibauntWidget` from `ribaunt/widget-react` and place it anywhere in your JSX. Every configuration option is available as a typed prop, and each widget event maps to an `on*` callback.
+
+<Note>
+  If you are using the **Next.js App Router**, add `'use client'` at the top of the file — see the [Next.js integration guide](/integrations/nextjs) for details.
+</Note>
+
+```tsx
+'use client'; // needed only in Next.js App Router
+
+import RibauntWidget from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  return (
+    <RibauntWidget
+      challengeEndpoint="/api/captcha/challenge"
+      verifyEndpoint="/api/captcha/verify"
+      autoVerify={true}
+      solveTimeout={15000}
+      onVerify={(detail) => console.log('Verified:', detail.solutions)}
+      onError={(detail) => console.error('Failed:', detail.error)}
+      onStateChange={(detail) => console.log('State:', detail.state)}
+    />
+  );
+}
+```
+
+## Imperative handle (ref)
+
+Pass a `ref` typed as `RibauntWidgetHandle` to call `reset()`, `getState()`, or `startVerification()` from your own code — for example, to trigger verification from a custom button or to reset after a failed form submission.
+
+```tsx
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  const widgetRef = useRef<RibauntWidgetHandle>(null);
+
+  return (
+    <>
+      <RibauntWidget
+        ref={widgetRef}
+        challengeEndpoint="/api/captcha/challenge"
+        verifyEndpoint="/api/captcha/verify"
+      />
+      <button onClick={() => widgetRef.current?.startVerification()}>
+        Verify manually
+      </button>
+      <button onClick={() => widgetRef.current?.reset()}>
+        Reset
+      </button>
+    </>
+  );
+}
+```
+
+The three methods exposed by the handle are:
+
+| Method | Description |
+|---|---|
+| `startVerification()` | Programmatically starts the proof-of-work solve. |
+| `reset()` | Returns the widget to its initial state. |
+| `getState()` | Returns the current widget state string, or `''` if the widget is not yet mounted. |
+
+## Live prop updates
+
+<Info>
+  The React wrapper syncs the following props to the underlying web component after mount — you do **not** need to remount the widget (e.g. by changing `key`) when any of these values change:
+
+  - `challengeEndpoint`
+  - `verifyEndpoint`
+  - `autoVerify`
+  - `showWarning`
+  - `warningMessage`
+  - `solveTimeout`
+  - `disabled`
+
+  If your existing integration forced a remount by changing `key` whenever one of these props changed, you can safely remove that workaround.
+</Info>
+
+## Using the raw web component
+
+For advanced cases where you want full control over DOM event listeners, you can register the web component yourself with a side-effect import and use `<ribaunt-widget>` directly in JSX. Ribaunt ships TypeScript declarations for both `HTMLElementTagNameMap` and `JSX.IntrinsicElements`, so you get type safety either way.
+
+```tsx
+import { useEffect, useRef } from 'react';
+
+// Side-effect import — registers the custom element
+import 'ribaunt/widget';
+
+export default function MyForm() {
+  const widgetRef = useRef<import('ribaunt/widget').RibauntWidgetElement>(null);
+
+  useEffect(() => {
+    const widget = widgetRef.current;
+    if (!widget) return;
+
+    const handleVerify = (e: Event) => {
+      console.log('Verified!', (e as CustomEvent).detail.solutions);
+    };
+
+    widget.addEventListener('verify', handleVerify);
+    return () => widget.removeEventListener('verify', handleVerify);
+  }, []);
+
+  return (
+    <ribaunt-widget
+      ref={widgetRef}
+      challenge-endpoint="/api/captcha/challenge"
+      verify-endpoint="/api/captcha/verify"
+    />
+  );
+}
+```
+
+<Note>
+  When using the raw web component approach in a server-rendered environment you must guard the import yourself (e.g. inside a `useEffect`) to prevent it from running during SSR. The `ribaunt/widget-react` wrapper handles this automatically, which is why it is the recommended approach.
+</Note>
+
+For the complete list of props, attributes, and events, see [Widget configuration](/widget/configuration) and [Widget events](/widget/events).

@@ -1,0 +1,89 @@
+---
+title: "solveChallenge — Synchronous PoW Solver for Testing"
+sidebarTitle: "solveChallenge"
+description: "solveChallenge(token, options?) solves JWT challenge tokens synchronously. Use in tests and tooling — not in production request handlers."
+---
+
+`solveChallenge()` runs the same proof-of-work algorithm used by the browser widget, but synchronously in Node.js. It's designed for automated testing of your challenge and verify endpoints — not for production use in request handlers.
+
+## Import
+
+```ts
+import { solveChallenge } from 'ribaunt';
+```
+
+## Signature
+
+```ts
+// Single token
+function solveChallenge(
+  token: ChallengeToken,
+  options?: SolveChallengeOptions
+): ChallengeSolution | undefined
+
+// Array of tokens
+function solveChallenge(
+  token: ChallengeToken[],
+  options?: SolveChallengeOptions
+): ChallengeSolution[] | undefined
+```
+
+## Parameters
+
+<ParamField path="token" type="ChallengeToken | ChallengeToken[]" required>
+  A single JWT challenge token or an array of tokens from `createChallenge()`.
+</ParamField>
+
+<ParamField path="options" type="SolveChallengeOptions">
+  Optional guardrails to prevent long-running synchronous solves.
+
+  <Expandable title="SolveChallengeOptions">
+    <ParamField path="maxIterations" type="number">
+      Hard cap on nonce attempts per token. Returns `undefined` if reached.
+    </ParamField>
+
+    <ParamField path="maxDurationMs" type="number" default="30000">
+      Max synchronous solve time in milliseconds per token. Returns `undefined` if exceeded.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Return value
+
+Returns a `ChallengeSolution` (`{ nonce: string; hash: string }`) for a single token input, or `ChallengeSolution[]` for an array input. Returns `undefined` if any guardrail is hit or a token is invalid. When solving an array, `undefined` is returned as soon as any single token fails — no partial results are returned.
+
+## Example
+
+```ts
+import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
+
+// Use low difficulty in tests for speed
+const tokens = createChallenge(3, 2, 60);
+const solutions = solveChallenge(tokens);
+
+if (solutions) {
+  const valid = await verifySolution(tokens, solutions);
+  console.log('Valid:', valid); // true
+}
+```
+
+With guardrails:
+
+```ts
+const solution = solveChallenge(token, {
+  maxDurationMs: 2000,
+  maxIterations: 500_000,
+});
+
+if (!solution) {
+  console.log('Solver gave up — difficulty too high or timeout reached');
+}
+```
+
+<Warning>
+  `solveChallenge` is synchronous and CPU-intensive. Never call it in a production HTTP request handler — it will block your Node.js event loop.
+</Warning>
+
+<Tip>
+  Use difficulty 3–4 in tests. Difficulty 5 will noticeably slow down your test suite.
+</Tip>

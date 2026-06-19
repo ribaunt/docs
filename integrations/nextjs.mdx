@@ -1,0 +1,59 @@
+---
+title: "Integrate Ribaunt CAPTCHA into Next.js (App Router)"
+sidebarTitle: "Next.js"
+description: "Add Ribaunt CAPTCHA to Next.js using the React wrapper in a client component. Covers App Router setup, SSR guards, and environment variable safety."
+---
+
+Ribaunt's React wrapper at `ribaunt/widget-react` handles SSR guards automatically by dynamically importing the browser-only web component on the client. Add `'use client'` to your component file, import `RibauntWidget`, and you are ready to go — no extra configuration required.
+
+<Warning>
+  **Never prefix `RIBAUNT_SECRET` with `NEXT_PUBLIC_`.**  
+  Doing so embeds the secret in your client bundle and exposes it to every visitor. Keep `RIBAUNT_SECRET` in `.env.local` without the `NEXT_PUBLIC_` prefix so it remains exclusively on the server.
+</Warning>
+
+## Client component setup
+
+Create a client component and drop in `RibauntWidget`. Because the wrapper handles dynamic importing internally, you do **not** need to wrap it in `next/dynamic`.
+
+```tsx
+'use client';
+
+import { useRef } from 'react';
+import RibauntWidget, { type RibauntWidgetHandle } from 'ribaunt/widget-react';
+
+export default function ContactForm() {
+  const widgetRef = useRef<RibauntWidgetHandle>(null);
+
+  return (
+    <form>
+      <RibauntWidget
+        ref={widgetRef}
+        challengeEndpoint="/api/captcha/challenge"
+        verifyEndpoint="/api/captcha/verify"
+        autoVerify={true}
+        solveTimeout={15000}
+        onVerify={(detail) => console.log('Verified:', detail.solutions)}
+        onError={(detail) => console.error('Failed:', detail.error)}
+        onReady={(detail) => console.log('Ready:', detail.state)}
+      />
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+```
+
+<Note>
+  **Do NOT wrap in `next/dynamic`** — the `ribaunt/widget-react` wrapper already handles dynamic importing internally. Adding an extra `next/dynamic` call is unnecessary and may cause double-loading.
+</Note>
+
+## API routes
+
+The client component above calls `/api/captcha/challenge` and `/api/captcha/verify`. You need to create those server-side endpoints to generate challenges and validate solutions. See the [Next.js server guide](/server/nextjs) for the full route handler implementation.
+
+## Key considerations
+
+- **Always use `'use client'`** — `RibauntWidget` renders in the browser and relies on browser APIs.
+- **Don't use `next/dynamic`** — the wrapper handles dynamic importing on its own; adding `next/dynamic` is redundant.
+- **Don't expose `RIBAUNT_SECRET` via `NEXT_PUBLIC_`** — the secret must remain server-side only.
+- **Use HTTPS or localhost** — browser solving depends on the Web Crypto API, which is restricted to secure contexts. Plain local-network HTTP URLs (e.g. `http://192.168.x.x`) will not work.
+- **For serverless or edge deployments** — the default replay prevention uses process-local memory, which is not shared across serverless instances. Set `replayPrevention: 'remote'` with an atomic distributed store to prevent replay attacks in those environments.

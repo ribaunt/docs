@@ -1,0 +1,101 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Ribaunt",
+  "theme": "luma",
+  "favicon": "https://icons.duckduckgo.com/ip3/ribaunt.com.ico",
+  "colors": {
+    "primary": "#7c7c7c",
+    "light": "#c1c1c1",
+    "dark": "#050505"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Space Grotesk"
+    },
+    "body": {
+      "family": "Space Grotesk"
+    }
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/ribaunt/ribaunt"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/replay-protection"
+            ]
+          },
+          {
+            "group": "Server Setup",
+            "pages": [
+              "server/express",
+              "server/nextjs"
+            ]
+          },
+          {
+            "group": "Frontend Integration",
+            "pages": [
+              "integrations/html",
+              "integrations/react",
+              "integrations/nextjs",
+              "integrations/vue"
+            ]
+          },
+          {
+            "group": "Widget",
+            "pages": [
+              "widget/configuration",
+              "widget/events",
+              "widget/theming"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/testing",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server API",
+            "pages": [
+              "api/create-challenge",
+              "api/verify-solution",
+              "api/solve-challenge"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

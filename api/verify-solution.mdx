@@ -1,0 +1,99 @@
+---
+title: "verifySolution — Validate PoW Proof Submitted by Browser"
+sidebarTitle: "verifySolution"
+description: "verifySolution(token, nonce, options?) validates JWT signatures, hash proofs, expiry, and replay prevention. Returns Promise<boolean>."
+---
+
+`verifySolution()` is called server-side in your verify endpoint to check that the browser correctly solved all challenge tokens. It checks the JWT signature, token expiry, the SHA-256 hash proof, and (by default) prevents token reuse.
+
+## Import
+
+```ts
+import { verifySolution } from 'ribaunt';
+```
+
+## Signature
+
+```ts
+function verifySolution(
+  token: ChallengeToken | ChallengeToken[],
+  nonce: number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[],
+  options?: VerifySolutionOptions
+): Promise<boolean>
+```
+
+## Parameters
+
+<ParamField path="token" type="ChallengeToken | ChallengeToken[]" required>
+  The original JWT token(s) returned by `createChallenge()`. Pass the same tokens your challenge endpoint issued.
+</ParamField>
+
+<ParamField path="nonce" type="number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[]" required>
+  The solution(s) submitted by the browser. Can be:
+
+  - A single nonce string
+  - An array of nonce strings
+  - A `ChallengeSolution` object `{ nonce: string; hash: string }`
+  - An array of `ChallengeSolution` objects (what the widget sends as `solutions`)
+</ParamField>
+
+<ParamField path="options" type="VerifySolutionOptions">
+  Optional configuration object. See the options table below.
+</ParamField>
+
+## Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Controls how token reuse is prevented |
+| `replayStore` | `ReplayStore` | `undefined` | Required when `replayPrevention` is `'remote'`. Implements the `consume()` method. |
+| `debug` | `boolean` | auto (true in dev) | Log verification warnings to console |
+| `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Callback for structured warning events |
+
+## Return value
+
+`Promise<boolean>`. Returns `true` only if ALL tokens have valid solutions and pass replay checks. Returns `false` for any failure without throwing.
+
+## Examples
+
+Basic usage:
+
+```ts
+const { tokens, solutions } = req.body;
+const valid = await verifySolution(tokens, solutions);
+```
+
+With structured warning telemetry:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  onWarning: (warning) => {
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'replay-detected' | 'configuration-error'
+    console.log('captcha warning', warning.reason, warning.message);
+  },
+});
+```
+
+With remote replay store:
+
+```ts
+const valid = await verifySolution(tokens, solutions, {
+  replayPrevention: 'remote',
+  replayStore: {
+    consume: async (jti, expiresAt) => {
+      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EX)
+      return await redis.set(jti, '1', 'NX', 'EXAT', expiresAt) !== null;
+    },
+  },
+});
+```
+
+## Warning reasons
+
+| Reason | Description |
+| --- | --- |
+| `invalid-token` | JWT signature is invalid or malformed |
+| `expired-token` | Challenge TTL has passed |
+| `invalid-solution` | The nonce does not produce a valid hash |
+| `replay-detected` | Token was already consumed |
+| `configuration-error` | `replayPrevention` is `'remote'` but no `replayStore` provided |
