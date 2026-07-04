@@ -13,15 +13,10 @@ Ribaunt stellt `solveChallenge()` bereit — einen synchronen, serverseitigen So
 ```ts
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
-// Generate a challenge (as your server would)
-const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
-
-// Solve it (as the browser would)
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
-
-// Verify the solution (as your verify endpoint would)
-const valid = await verifySolution(tokens, solutions);
-console.assert(valid === true);
+const result = await verifySolution(tokens, solutions);
+console.assert(result.valid === true);
 ```
 
 <Tip>
@@ -46,14 +41,14 @@ Wird eine der Sicherungen erreicht, gibt `solveChallenge` für dieses Token `und
 Ribaunts Standardmodus `local` für Replay-Schutz verhindert, dass ein Token innerhalb desselben Prozesses mehr als einmal verifiziert wird. Du kannst dieses Verhalten direkt in deinen Tests bestätigen, indem du dieselbe Lösung zweimal einreichst.
 
 ```ts
-const tokens = createChallenge(3, 2, 30);
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
 
 const first = await verifySolution(tokens, solutions);
-console.assert(first === true);  // Passes
+console.assert(first.valid === true);
 
 const second = await verifySolution(tokens, solutions);
-console.assert(second === false); // Rejected — replay detected
+console.assert(second.valid === false); // Rejected — replay detected
 ```
 
 Der zweite Aufruf gibt `false` zurück, weil die Challenge-JTIs beim ersten Gebrauch verbraucht werden.
@@ -63,7 +58,7 @@ Der zweite Aufruf gibt `false` zurück, weil die Challenge-JTIs beim ersten Gebr
 Einige Unit-Tests müssen dieselben Tokens über mehrere Assertions hinweg wiederverwenden — etwa um zu testen, dass eine gültige Lösung deine Geschäftslogik unabhängig vom Replay-Zustand immer besteht. Du kannst den Replay-Schutz für einen einzelnen `verifySolution`-Aufruf deaktivieren.
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'disabled',
 });
 ```
@@ -79,7 +74,7 @@ Wenn du prüfen möchtest, _warum_ eine Verifizierung fehlgeschlagen ist — nic
 ```ts
 const warnings: string[] = [];
 
-const valid = await verifySolution(tokens, badSolutions, {
+const result = await verifySolution(tokens, badSolutions, {
   onWarning: (w) => warnings.push(w.reason),
 });
 

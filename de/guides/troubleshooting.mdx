@@ -36,7 +36,7 @@ Dieser Leitfaden behandelt die häufigsten Probleme, die bei der Integration von
 
     ```ts
     // Allow up to 5 minutes to complete the form
-    const tokens = createChallenge(5, 4, 300);
+    const tokens = createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 300 });
     ```
   </Accordion>
 
@@ -48,7 +48,7 @@ Dieser Leitfaden behandelt die häufigsten Probleme, die bei der Integration von
     Wenn du dies in **Serverless- oder Multi-Instance-Deployments** siehst, liegt das Problem darin, dass jeder Funktionsaufruf seinen eigenen In-Memory-Store hat. Tokens, die in einer Instanz verbraucht wurden, sind für andere unsichtbar. Wechsle zu `replayPrevention: 'remote'` mit einem verteilten Store:
 
     ```ts
-    const isValid = await verifySolution(tokens, solutions, {
+    const result = await verifySolution(tokens, solutions, {
       replayPrevention: 'remote',
       replayStore: {
         consume: async (jti, expiresAt) => {
@@ -95,7 +95,7 @@ Dieser Leitfaden behandelt die häufigsten Probleme, die bei der Integration von
     **Lösung:** Wechsle zu `replayPrevention: 'remote'` mit einem Redis- oder Valkey-Adapter, der atomare `SET NX EX`-Semantik verwendet:
 
     ```ts
-    const isValid = await verifySolution(tokens, solutions, {
+    const result = await verifySolution(tokens, solutions, {
       replayPrevention: 'remote',
       replayStore: {
         consume: async (jti, expiresAt) => {
@@ -130,7 +130,7 @@ Dieser Leitfaden behandelt die häufigsten Probleme, die bei der Integration von
 Standardmäßig protokolliert Ribaunt Verifizierungs-Warnungen in der Konsole, wenn `NODE_ENV` auf `development` gesetzt ist. In anderen Umgebungen sind Warnungen stumm, sofern du dich nicht aktiv dafür entscheidest. Verwende die Option `debug`, um die Konsolenausgabe explizit zu aktivieren, oder verwende `onWarning` für strukturiertes Logging, das in jeder Umgebung funktioniert.
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   debug: true, // Logs warnings to console in development
   onWarning: (w) => console.log(w.reason, w.message),
 });

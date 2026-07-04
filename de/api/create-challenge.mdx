@@ -1,7 +1,7 @@
 ---
 title: "createChallenge"
 sidebarTitle: "createChallenge"
-description: "createChallenge(difficulty, amount, ttlSeconds) erzeugt signierte JWT-Challenge-Tokens für die Proof-of-Work-Verifizierung."
+description: "createChallenge() erzeugt signierte JWT-Challenge-Tokens für die Proof-of-Work-Verifizierung."
 ---
 
 `createChallenge()` wird aus `ribaunt` importiert und serverseitig aufgerufen, um ein oder mehrere Proof-of-Work-Challenge-Tokens zu generieren. Jeder Token ist ein signiertes JWT, das der Browser-Solver dekodiert und gegen das er rechnet.
@@ -9,7 +9,7 @@ description: "createChallenge(difficulty, amount, ttlSeconds) erzeugt signierte 
 ## Import
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 ```
 
 ## Signatur
@@ -20,61 +20,101 @@ function createChallenge(
   amount?: number,
   ttlSeconds?: number
 ): ChallengeToken[]
+
+function createChallenge(options: ChallengeOptions): ChallengeToken[]
 ```
 
 ## Parameter
+
+Du kannst `createChallenge()` in zwei Stilen aufrufen:
+
+- Positionsargumente: `createChallenge(difficulty, amount, ttlSeconds)`
+- Optionsobjekt: `createChallenge({ difficulty, amount, ttlSeconds, context, workload })`
 
 <ParamField path="difficulty" default="5" type="number">
   Anzahl der führenden Null-Hexziffern, die im SHA-256-Hash erforderlich sind. Jede Erhöhung verdoppelt die Lösezeit ungefähr. Werte über 6 können dazu führen, dass Browser hängen bleiben.
 </ParamField>
 
 <ParamField path="amount" default="4" type="number">
-  Anzahl der zu generierenden Challenge-Tokens. Mehr Challenges erhöhen die gesamte Proof-of-Work-Last, erhöhen aber auch die Netzwerkbandbreite.
+  Anzahl der zu generierenden Challenge-Tokens. Mehr Challenges erhöhen die gesamte Proof-of-Work-Last, aber auch die Netzwerkbandbreite.
 </ParamField>
 
 <ParamField path="ttlSeconds" default="30" type="number">
-  Lebensdauer des Challenge-Tokens in Sekunden. Tokens, die nach Ablauf eingereicht werden, werden von `verifySolution` abgelehnt.
+  Lebensdauer des Challenge-Tokens in Sekunden. Tokens, die nach Ablauf eingereicht werden, werden von `verifySolution()` abgelehnt.
+</ParamField>
+
+<ParamField path="context" type="string">
+  Optionaler Scope-String, der an das Challenge-Token gebunden wird. Gib denselben Wert an `verifySolution({ context })` weiter, um zu erzwingen, dass die Verifizierung denselben Kontext verwendet.
+</ParamField>
+
+<ParamField path="workload" type="Pick<Workload, 'difficulty' | 'amount'>">
+  Optionale Kurzform, um Schwierigkeit und Anzahl gemeinsam festzulegen. Nutze dies, wenn du die Challenge-Konfiguration in einem Objekt halten möchtest.
 </ParamField>
 
 ## Rückgabewert
 
 Gibt `ChallengeToken[]` zurück — ein Array signierter JWT-Zeichenketten. Sende dieses Array als `{ challenges: tokens }` an den Browser.
 
-## Beispiel
+## Beispiele
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 
-// Fast: low difficulty, short TTL (login forms, comment boxes)
-const fast = createChallenge(4, 4, 30);
+const fast = createChallenge({
+  difficulty: 4,
+  amount: 4,
+  ttlSeconds: 30,
+});
 
-// Moderate: standard configuration for most use cases
-const moderate = createChallenge(5, 4, 120);
+const moderate = createChallenge({
+  difficulty: 5,
+  amount: 4,
+  ttlSeconds: 120,
+  context: 'signup',
+});
 
-// High: sensitive actions (account creation, password reset)
-const high = createChallenge(5, 8, 120);
+// Adaptive Workload anhand von Risiko und Zielzeit
+const workload = selectWorkload({
+  riskScore: 75,
+  targetDurationMs: 750,
+});
+
+const adaptive = createChallenge({
+  workload,
+  ttlSeconds: 120,
+});
 ```
 
-## Empfohlene Einstellungen
+## Adaptive Workload
 
-| Anwendungsfall | Schwierigkeit | Anzahl | TTL |
-| --- | --- | --- | --- |
-| Schnell / Hintergrund | 4 | 4 | 30 |
-| Mittel / Formular-Einreichung | 5 | 4 | 60 |
-| Hoch / sensible Aktionen | 5 | 8 | 120 |
+Nutze `selectWorkload()`, wenn der Server Schwierigkeit und Anzahl anhand eines Risikoscores und einer Ziel-Lösezeit auswählen soll.
+
+```ts
+const workload = selectWorkload({
+  riskScore: 70,
+  targetDurationMs: 800,
+  calibration: {
+    iterations: 250_000,
+    durationMs: 200,
+  },
+});
+```
+
+`selectWorkload()` respektiert konfigurierte Grenzen und gibt ein `Workload`-Objekt mit `difficulty`, `amount` und `estimatedAttempts` zurück.
 
 ## Validierung
 
-`createChallenge()` validiert alle drei Parameter zur Laufzeit und wirft einen Fehler, wenn ein Wert ungültig ist:
+`createChallenge()` validiert seine Eingaben zur Laufzeit und wirft einen Fehler, wenn etwas ungültig ist:
 
 - **`difficulty`** — muss eine endliche Zahl und mindestens `1` sein. Bruchwerte werden mit `Math.floor()` abgerundet.
 - **`amount`** — muss eine endliche Zahl und mindestens `1` sein. Bruchwerte werden mit `Math.floor()` abgerundet.
 - **`ttlSeconds`** — muss eine endliche Zahl und mindestens `1` sein. Bruchwerte werden mit `Math.floor()` abgerundet.
+- **`workload`** — wenn du sie angibst, müssen die ausgewählten Werte weiterhin in die konfigurierten Grenzen passen.
 
 <Warning>
   Lasse niemals vom Benutzer kontrollierte Request-Parameter ohne Validierung direkt in `createChallenge()` einfließen.
 </Warning>
 
 <Note>
-  Erfordert, dass `RIBAUNT_SECRET` als Umgebungsvariable gesetzt ist. `createChallenge()` wirft einen Fehler, wenn das Secret fehlt.
+  Erfordert, dass `RIBAUNT_SECRET` als Umgebungsvariable gesetzt ist. `createChallenge()` wirft einen Fehler, wenn das Secret fehlt oder weniger als 32 UTF-8-Bytes lang ist.
 </Note>

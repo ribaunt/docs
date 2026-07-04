@@ -1,14 +1,14 @@
 ---
 title: "Configuration"
 sidebarTitle: "Configuration"
-description: "Complete reference for all ribaunt-widget HTML attributes and React props: endpoints, auto-verify, timeout, disabled state, and challenge response formats."
+description: "Complete reference for all ribaunt-widget HTML attributes and React props: endpoints, auto-verify, timeout, worker mode, challenge method, calibration, and challenge response formats."
 ---
 
 The `<ribaunt-widget>` Web Component and its React wrapper share the same configuration surface. HTML uses kebab-case attributes; React uses camelCase props. You can use both interchangeably depending on your stack — everything described here applies to both unless noted otherwise.
 
 ## Quick example
 
-The snippet below shows every available attribute set on the HTML element:
+The snippet below shows the most commonly used attributes on the HTML element:
 
 ```html
 <ribaunt-widget
@@ -18,6 +18,9 @@ The snippet below shows every available attribute set on the HTML element:
   show-warning="false"
   warning-message="Verification may take longer on this device."
   solve-timeout="15000"
+  worker-mode="preferred"
+  challenge-method="GET"
+  calibrate="true"
   disabled="false"
 ></ribaunt-widget>
 ```
@@ -28,11 +31,14 @@ The snippet below shows every available attribute set on the HTML element:
 | --- | --- | --- | --- | --- |
 | `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | URL endpoint that returns `{ challenges: string[] }`. If undefined, the widget cannot auto-fetch. |
 | `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | URL endpoint to POST the solutions. If undefined, you must handle verification manually using the solver directly. |
-| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Starts verification automatically once the widget loads. Set to `"false"` or omit it to require user interaction or `startVerification()`. |
-| `show-warning` | `showWarning` | `boolean \| string` | `false` | Shows a red warning banner above the widget. Often used to alert users if WebAssembly is missing for future fast-solvers. |
-| `warning-message` | `warningMessage` | `string` | `"Enable WASM..."` | Custom message text for the warning banner. |
-| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optional timeout in milliseconds for solving. If omitted, solving is not automatically timed out. |
-| `disabled` | `disabled` | `boolean \| string` | `false` | Disables user interaction and programmatic verification while set. |
+| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Starts verification automatically once the widget loads. |
+| `show-warning` | `showWarning` | `boolean \| string` | `false` | Shows a warning banner above the widget. |
+| `warning-message` | `warningMessage` | `string` | `"Enable WASM for significantly faster solving"` | Custom message text for the warning banner. |
+| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optional timeout in milliseconds for solving. |
+| `worker-mode` | `workerMode` | `'preferred' \| 'required' \| 'disabled'` | `'preferred'` | Controls whether the widget uses a Web Worker for solving. |
+| `challenge-method` | `challengeMethod` | `'GET' \| 'POST'` | `'GET'` | Chooses how the widget requests challenges. `POST` allows sending a calibration payload. |
+| `calibrate` | `calibrate` | `boolean \| string` | `false` | Sends a browser calibration payload to the challenge endpoint when using `challenge-method="POST"`. |
+| `disabled` | `disabled` | `boolean \| string` | `false` | Disables interaction and prevents automatic verification while set. |
 
 ## Challenge endpoint response format
 
@@ -42,11 +48,22 @@ Your `challenge-endpoint` should return a JSON body containing the challenge tok
   The widget accepts three response formats from `challenge-endpoint`:
 
   1. `{ challenges: string[] }` — recommended contract
-  2. `{ tokens: string[] }` — legacy compatibility
-  3. raw `string[]` — legacy compatibility
+  2. `{ tokens: string[] }` — compatibility support
+  3. raw `string[]` — compatibility support
 
   Invalid or mixed-type token arrays will fail fast with a clear widget error event.
 </Info>
+
+## Verification request body
+
+When you provide a `verify-endpoint`, the widget sends a JSON payload shaped like this:
+
+```json
+{
+  "tokens": ["jwt-token-1", "jwt-token-2"],
+  "solutions": [{ "nonce": "123", "hash": "abc123" }]
+}
+```
 
 ## Disabled state behavior
 

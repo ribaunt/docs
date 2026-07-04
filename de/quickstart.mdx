@@ -38,65 +38,63 @@ Diese Anleitung führt dich durch den Aufbau einer vollständigen Ribaunt-CAPTCH
     </Warning>
   </Step>
   <Step title="Server-Endpunkte erstellen">
-    Du benötigst zwei Endpunkte: einen, der Challenges ausstellt, und einen, der Lösungen verifiziert. Hier ist ein vollständiges Express-Beispiel mit den Funktionen `createChallenge` und `verifySolution` aus `ribaunt`.
+    Du benötigst zwei Endpunkte: einen, der Challenges ausstellt, und einen, der Lösungen verifiziert. Hier ist ein vollständiges Express-Beispiel mit den aktuellen APIs von `createChallenge` und `verifySolution` aus `ribaunt`.
 
     ```ts
     import 'dotenv/config';
     import express from 'express';
     import { createChallenge, verifySolution } from 'ribaunt';
-    
+
     const app = express();
     app.use(express.json());
-    
-    // Issues signed JWT challenges to the browser widget
+
     app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge(5, 4, 120);
-      // createChallenge(difficulty, amount, ttlSeconds)
+      const challenges = createChallenge({
+        difficulty: 5,
+        amount: 4,
+        ttlSeconds: 120,
+        context: 'signup',
+      });
+
       res.json({ challenges });
     });
-    
-    // Verifies the nonces submitted by the browser widget
+
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
-      const valid = await verifySolution(tokens, solutions);
-    
-      if (!valid) {
-        return res.status(400).json({ success: false, error: 'Invalid CAPTCHA solution' });
+      const result = await verifySolution(tokens, solutions, { context: 'signup' });
+
+      if (!result.valid) {
+        return res.status(400).json({ success: false, error: result.reason, message: result.message });
       }
-    
+
       return res.json({ success: true });
     });
-    
+
     app.listen(3000);
     ```
 
-    `createChallenge` akzeptiert drei Parameter:
+    `createChallenge()` akzeptiert sowohl Positionsargumente als auch ein Optionsobjekt. Das Optionsobjekt unterstützt `difficulty`, `amount`, `ttlSeconds`, `context` und eine adaptive `workload`-Konfiguration.
 
-    | Parameter | Standard | Beschreibung |
-    | --- | --- | --- |
-    | `difficulty` | `5` | Anzahl der führenden Nullen, die im SHA-256-Hash erforderlich sind. Höhere Werte verlängern die Lösungszeit. |
-    | `amount` | `4` | Anzahl der zu erstellenden Challenge-Tokens. |
-    | `ttlSeconds` | `30` | Lebensdauer des Challenge-Tokens in Sekunden. |
-
-    `verifySolution` gibt ein `Promise<boolean>` zurück. Die Funktion validiert die JWT-Signatur, prüft den Ablauf, bestätigt, dass die Nonce einen Hash mit den erforderlichen führenden Nullen erzeugt, und blockiert standardmäßig Wiederholungen über prozesslokalen Speicher.
+    `verifySolution()` gibt nun ein strukturiertes Ergebnisobjekt zurück statt eines bloßen Booleans. Prüfe `result.valid` und verwende `result.reason` oder `result.message`, wenn die Verifizierung fehlschlägt.
   </Step>
   <Step title="Widget in dein Frontend einbinden">
-    Binde das Ribaunt-Web-Component-Skript ein und platziere das `<ribaunt-widget>`-Element überall dort, wo du CAPTCHA-Schutz benötigst. Das Widget lädt eine Challenge von deinem Server, löst sie im Hintergrund und ruft anschließend automatisch deinen Verify-Endpunkt auf, wenn `auto-verify="true"` gesetzt ist.
+    Binde das Ribaunt-Web-Component-Skript ein und platziere das `<ribaunt-widget>`-Element überall dort, wo du CAPTCHA-Schutz benötigst. Das Widget lädt eine Challenge von deinem Server, löst sie im Hintergrund und sendet die Lösungen anschließend an deinen Verify-Endpunkt, wenn `auto-verify="true"` gesetzt ist.
 
     ```html
     <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
-    
+
     <ribaunt-widget
       challenge-endpoint="/api/captcha/challenge"
       verify-endpoint="/api/captcha/verify"
       auto-verify="true"
+      solve-timeout="15000"
     ></ribaunt-widget>
-    
+
     <script>
       const widget = document.querySelector('ribaunt-widget');
-    
-      widget.addEventListener('verify', (e) => {
-        console.log('Verified!', e.detail.solutions);
+
+      widget.addEventListener('verify', (event) => {
+        console.log('Verified!', event.detail.solutions);
       });
     </script>
     ```
@@ -106,14 +104,14 @@ Diese Anleitung führt dich durch den Aufbau einer vollständigen Ribaunt-CAPTCH
 </Steps>
 
 <Note>
-  Das Widget sendet ein `verify`-Event, sobald die Challenge gelöst ist. Verwende es, um deinen Submit-Button zu aktivieren oder mit dem Absenden des Formulars fortzufahren. Ein entsprechendes `error`-Event wird ausgelöst, wenn die Verifizierung fehlschlägt, sodass du dem Nutzer eine Rückmeldung geben kannst.
+  Das Widget sendet ein `verify`-Event, sobald die Challenge gelöst ist. Ein entsprechendes `error`-Event wird ausgelöst, wenn die Verifizierung fehlschlägt, und `state-change` meldet Zwischenzustände wie `fetching`, `solving`, `verifying` und `done`.
 </Note>
 
 ## Nächste Schritte
 
 <CardGroup cols={2}>
   <Card title="Widget-Konfiguration" icon="sliders" href="/widget/configuration">
-    Entdecke alle Widget-Attribute – Timeouts, Theming, Warnbanner und den `disabled`-Zustand.
+    Entdecke alle Widget-Attribute – Timeouts, Worker-Mode, Challenge-Methode, Kalibrierung, Theming und den `disabled`-Zustand.
   </Card>
 
   <Card title="React-Integration" icon="react" href="/integrations/react">
@@ -121,6 +119,6 @@ Diese Anleitung führt dich durch den Aufbau einer vollständigen Ribaunt-CAPTCH
   </Card>
 
   <Card title="Express-Server-Beispiel" icon="server" href="/server/express">
-    Eine produktionsreife Express-Server-Einrichtung mit Wiederholungsschutz und strukturierten Warnungs-Callbacks.
+    Eine produktionsreife Express-Server-Einrichtung mit Wiederholungsschutz, strukturierten Warnungen und kontextabhängiger Verifizierung.
   </Card>
 </CardGroup>

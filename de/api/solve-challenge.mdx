@@ -57,13 +57,12 @@ Gibt eine `ChallengeSolution` (`{ nonce: string; hash: string }`) für eine einz
 ```ts
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
-// Use low difficulty in tests for speed
-const tokens = createChallenge(3, 2, 60);
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 60 });
 const solutions = solveChallenge(tokens);
 
 if (solutions) {
-  const valid = await verifySolution(tokens, solutions);
-  console.log('Valid:', valid); // true
+  const result = await verifySolution(tokens, solutions);
+  console.log('Valid:', result.valid); // true
 }
 ```
 

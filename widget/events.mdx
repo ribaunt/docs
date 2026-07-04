@@ -10,13 +10,13 @@ The `<ribaunt-widget>` emits three DOM custom events — `verify`, `error`, and 
 
 The `verify` event is dispatched when the widget successfully solves all challenges and, if you provided a `verify-endpoint`, the server confirms the solutions are valid. If no `verify-endpoint` is set, the event fires as soon as local proof-of-work is complete.
 
-**Event type:** `CustomEvent<{ solutions: ChallengeSolution[] }>`
+**Event type:** `CustomEvent<{ solutions: ChallengeSolution[]; phase: 'done'; progress: 100 }>`
 
 Where `ChallengeSolution = { nonce: string; hash: string }`.
 
 ```js
-widget.addEventListener('verify', (e) => {
-  const { solutions } = e.detail;
+widget.addEventListener('verify', (event) => {
+  const { solutions } = event.detail;
   console.log('Verified! Solutions:', solutions);
   // Enable submit button, proceed with form, etc.
 });
@@ -28,15 +28,15 @@ widget.addEventListener('verify', (e) => {
 
 The `error` event is dispatched when the widget encounters a failure at any stage — fetching tokens from your challenge endpoint, running the proof-of-work solver, or receiving a non-OK response from your verify endpoint.
 
-**Event type:** `CustomEvent<{ error: string; timeout?: boolean }>`
+**Event type:** `CustomEvent<{ error: string; code: WidgetErrorCode; timeout: boolean; phase: 'error' }>`
 
 ```js
-widget.addEventListener('error', (e) => {
-  const { error, timeout } = e.detail;
+widget.addEventListener('error', (event) => {
+  const { error, code, timeout } = event.detail;
   if (timeout) {
     console.warn('Timed out:', error);
   } else {
-    console.error('CAPTCHA failed:', error);
+    console.error('CAPTCHA failed:', error, code);
   }
 });
 ```
@@ -51,12 +51,12 @@ widget.addEventListener('error', (e) => {
 
 The `state-change` event is dispatched every time the widget transitions between internal states. You can use this to mirror the widget's visual state in your own UI — for example, disabling a submit button while verification is in progress.
 
-**Event type:** `CustomEvent<{ state: 'initial' | 'verifying' | 'done' | 'error' }>`
+**Event type:** `CustomEvent<{ state: WidgetState; phase: WidgetState; progress: number }>`
 
 ```js
-widget.addEventListener('state-change', (e) => {
-  const { state } = e.detail;
-  // 'initial' | 'verifying' | 'done' | 'error'
+widget.addEventListener('state-change', (event) => {
+  const { state, progress } = event.detail;
+  console.log('Widget state:', state, progress);
 });
 ```
 
@@ -94,6 +94,8 @@ The widget moves through a defined set of states during its lifecycle. You will 
 | State | Description |
 | --- | --- |
 | `initial` | Widget has loaded, waiting for user click or auto-verify |
-| `verifying` | Solver is running (proof-of-work in progress) |
+| `fetching` | The widget is requesting challenges |
+| `solving` | The solver is running proof-of-work |
+| `verifying` | The widget is posting solutions to your verify endpoint |
 | `done` | Challenge solved and verified successfully |
 | `error` | An error occurred during fetch, solve, or verify |

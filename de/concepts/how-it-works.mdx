@@ -17,8 +17,12 @@ Jede Ribaunt-Verifizierung folgt einem dreistufigen Zyklus.
     ```ts
     import { createChallenge } from 'ribaunt';
     
-    // Issue 4 challenges at difficulty 5, valid for 60 seconds
-    const challenges = createChallenge(5, 4, 60);
+    const challenges = createChallenge({
+      difficulty: 5,
+      amount: 4,
+      ttlSeconds: 60,
+      context: 'signup',
+    });
     ```
   </Step>
   <Step title="Browser löst die Challenges">
@@ -32,15 +36,15 @@ Jede Ribaunt-Verifizierung folgt einem dreistufigen Zyklus.
     - Neuberechnung von `SHA-256(challenge + nonce)` und Bestätigung, dass er mit den erforderlichen führenden Nullen beginnt
     - Abgleich des `jti` mit dem Replay-Store, um sicherzustellen, dass das Token noch nie verwendet wurde
 
-    Nur wenn jede Prüfung erfolgreich ist, gibt `verifySolution()` `true` zurück.
+    Nur wenn jede Prüfung erfolgreich ist, gibt `verifySolution()` ein Ergebnis mit `valid: true` zurück.
 
     ```ts
     import { verifySolution } from 'ribaunt';
     
-    const valid = await verifySolution(tokens, solutions);
+    const result = await verifySolution(tokens, solutions, { context: 'signup' });
     
-    if (!valid) {
-      return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
+    if (!result.valid) {
+      return res.status(400).json({ error: result.message ?? 'Invalid CAPTCHA solution' });
     }
     ```
   </Step>
@@ -69,9 +73,9 @@ Der Parameter `difficulty` steuert, wie viele führende Nullen der Gewinner-Hash
 
 | Einstellung | Ungefähre Lösungszeit | Empfohlene Verwendung |
 | --- | --- | --- |
-| `createChallenge(4, 4, 30)` | Millisekunden | Schnelle / Hintergrundprüfungen |
-| `createChallenge(5, 4, 60)` | ~1 Sekunde | Moderat / Formularübermittlung |
-| `createChallenge(5, 8, 120)` | ~2 Sekunden | Hoch / sensible Aktionen |
+| `createChallenge({ difficulty: 4, amount: 4, ttlSeconds: 30 })` | Millisekunden | Schnelle / Hintergrundprüfungen |
+| `createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 60 })` | ~1 Sekunde | Moderat / Formularübermittlung |
+| `createChallenge({ difficulty: 5, amount: 8, ttlSeconds: 120 })` | ~2 Sekunden | Hoch / sensible Aktionen |
 
 <Warning>
   Werte über `6` können dazu führen, dass Browser hängen bleiben. Lass Nutzer oder externe Eingaben `difficulty`, `amount` oder `ttlSeconds` niemals ohne Validierung steuern.

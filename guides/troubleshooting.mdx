@@ -36,7 +36,7 @@ This guide covers the most common issues you may encounter when integrating Riba
 
     ```ts
     // Allow up to 5 minutes to complete the form
-    const tokens = createChallenge(5, 4, 300);
+    const tokens = createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 300 });
     ```
   </Accordion>
 
@@ -48,7 +48,7 @@ This guide covers the most common issues you may encounter when integrating Riba
     If you are seeing this in **serverless or multi-instance deployments**, the issue is that each function invocation has its own in-memory store. Tokens consumed in one instance are invisible to others. Switch to `replayPrevention: 'remote'` with a distributed store:
 
     ```ts
-    const isValid = await verifySolution(tokens, solutions, {
+    const result = await verifySolution(tokens, solutions, {
       replayPrevention: 'remote',
       replayStore: {
         consume: async (jti, expiresAt) => {
@@ -95,7 +95,7 @@ This guide covers the most common issues you may encounter when integrating Riba
     **Fix:** Switch to `replayPrevention: 'remote'` with a Redis or Valkey adapter that uses atomic `SET NX EX` semantics:
 
     ```ts
-    const isValid = await verifySolution(tokens, solutions, {
+    const result = await verifySolution(tokens, solutions, {
       replayPrevention: 'remote',
       replayStore: {
         consume: async (jti, expiresAt) => {
@@ -130,7 +130,7 @@ This guide covers the most common issues you may encounter when integrating Riba
 By default, Ribaunt logs verification warnings to the console when `NODE_ENV` is set to `development`. In other environments, warnings are silent unless you opt in. Use the `debug` option to enable console output explicitly, or use `onWarning` for structured logging that works in any environment.
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   debug: true, // Logs warnings to console in development
   onWarning: (w) => console.log(w.reason, w.message),
 });

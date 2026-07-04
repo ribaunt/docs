@@ -14,14 +14,14 @@ Ribaunt provides `solveChallenge()` — a synchronous, server-side solver — th
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
 // Generate a challenge (as your server would)
-const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 
 // Solve it (as the browser would)
 const solutions = solveChallenge(tokens);
 
 // Verify the solution (as your verify endpoint would)
-const valid = await verifySolution(tokens, solutions);
-console.assert(valid === true);
+const result = await verifySolution(tokens, solutions);
+console.assert(result.valid === true);
 ```
 
 <Tip>
@@ -46,14 +46,14 @@ If either guardrail is reached, `solveChallenge` returns `undefined` for that to
 Ribaunt's default `local` replay mode blocks any token from being verified more than once within the same process. You can confirm this behavior directly in your tests by submitting the same solution twice.
 
 ```ts
-const tokens = createChallenge(3, 2, 30);
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
 
 const first = await verifySolution(tokens, solutions);
-console.assert(first === true);  // Passes
+console.assert(first.valid === true);  // Passes
 
 const second = await verifySolution(tokens, solutions);
-console.assert(second === false); // Rejected — replay detected
+console.assert(second.valid === false); // Rejected — replay detected
 ```
 
 The second call returns `false` because the challenge JTIs are consumed on first use.
@@ -63,7 +63,7 @@ The second call returns `false` because the challenge JTIs are consumed on first
 Some unit tests need to reuse the same tokens across multiple assertions — for example, testing that a valid solution always passes your business logic regardless of replay state. You can disable replay protection for a single `verifySolution` call.
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'disabled',
 });
 ```
@@ -79,7 +79,7 @@ When you want to assert _why_ a verification failed — not just that it returne
 ```ts
 const warnings: string[] = [];
 
-const valid = await verifySolution(tokens, badSolutions, {
+const result = await verifySolution(tokens, badSolutions, {
   onWarning: (w) => warnings.push(w.reason),
 });
 

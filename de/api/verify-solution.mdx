@@ -1,10 +1,10 @@
 ---
 title: "verifySolution"
 sidebarTitle: "verifySolution"
-description: "verifySolution(token, nonce, options?) validiert JWT-Signaturen, Hash-Beweise, Ablauf und Replay-Schutz. Gibt Promise<boolean> zurück."
+description: "verifySolution() validiert JWT-Signaturen, Hash-Beweise, Ablauf, Replay-Schutz und optionalen Kontext. Gibt ein strukturiertes Ergebnisobjekt zurück."
 ---
 
-`verifySolution()` wird serverseitig in deinem Verify-Endpunkt aufgerufen, um zu prüfen, ob der Browser alle Challenge-Tokens korrekt gelöst hat. Es prüft die JWT-Signatur, den Token-Ablauf, den SHA-256-Hash-Beweis und verhindert (standardmäßig) die Wiederverwendung von Tokens.
+`verifySolution()` wird serverseitig in deinem Verify-Endpunkt aufgerufen, um zu prüfen, ob der Browser alle Challenge-Tokens korrekt gelöst hat. Es validiert die JWT-Signatur, den Token-Ablauf, den SHA-256-Hash-Beweis, Replay-Status und optionalen Kontext.
 
 ## Import
 
@@ -19,7 +19,7 @@ function verifySolution(
   token: ChallengeToken | ChallengeToken[],
   nonce: number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[],
   options?: VerifySolutionOptions
-): Promise<boolean>
+): Promise<VerifySolutionResult>
 ```
 
 ## Parameter
@@ -45,14 +45,27 @@ function verifySolution(
 
 | Option | Typ | Standard | Beschreibung |
 | --- | --- | --- | --- |
-| `replayPrevention` | `'local' | 'remote' | 'disabled'` | `'local'` | Steuert, wie die Wiederverwendung von Tokens verhindert wird |
-| `replayStore` | `ReplayStore` | `undefined` | Erforderlich, wenn `replayPrevention` auf `'remote'` gesetzt ist. Implementiert die Methode `consume()`. |
-| `debug` | `boolean` | auto (in dev `true`) | Verifizierungs-Warnungen in der Konsole protokollieren |
+| `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Steuert, wie die Wiederverwendung von Tokens verhindert wird |
+| `replayStore` | `ReplayStore` | `undefined` | Erforderlich, wenn `replayPrevention` auf `'remote'` gesetzt ist |
+| `context` | `string` | `undefined` | Erfordert denselben Kontextwert, der beim Ausstellen der Challenge verwendet wurde |
+| `debug` | `boolean` | auto (in dev `true`) | Protokolliert Verifizierungs-Warnungen in der Konsole |
 | `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Callback für strukturierte Warn-Ereignisse |
 
 ## Rückgabewert
 
-`Promise<boolean>`. Gibt `true` nur dann zurück, wenn ALLE Tokens gültige Lösungen haben und die Replay-Prüfungen bestehen. Gibt bei jedem Fehler `false` zurück, ohne einen Fehler zu werfen.
+`Promise<VerifySolutionResult>`. Die Funktion gibt entweder
+
+```ts
+{ valid: true }
+```
+
+oder
+
+```ts
+{ valid: false, reason, message }
+```
+
+zurück.
 
 ## Beispiele
 
@@ -60,15 +73,20 @@ Grundlegende Verwendung:
 
 ```ts
 const { tokens, solutions } = req.body;
-const valid = await verifySolution(tokens, solutions);
+const result = await verifySolution(tokens, solutions);
+
+if (!result.valid) {
+  return res.status(400).json({ success: false, error: result.reason });
+}
 ```
 
 Mit strukturierter Warn-Telemetrie:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
+  context: 'signup',
   onWarning: (warning) => {
-    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'replay-detected' | 'configuration-error'
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'context-mismatch' | 'replay-detected' | 'configuration-error'
     console.log('captcha warning', warning.reason, warning.message);
   },
 });
@@ -77,11 +95,11 @@ const valid = await verifySolution(tokens, solutions, {
 Mit Remote-Replay-Store:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: {
     consume: async (jti, expiresAt) => {
-      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EX)
+      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EXAT)
       return await redis.set(jti, '1', 'NX', 'EXAT', expiresAt) !== null;
     },
   },
@@ -95,5 +113,6 @@ const valid = await verifySolution(tokens, solutions, {
 | `invalid-token` | JWT-Signatur ist ungültig oder fehlerhaft |
 | `expired-token` | Die Challenge-TTL ist abgelaufen |
 | `invalid-solution` | Der Nonce erzeugt keinen gültigen Hash |
+| `context-mismatch` | Der übergebene Kontext stimmt nicht mit dem Token-Kontext überein |
 | `replay-detected` | Token wurde bereits verbraucht |
 | `configuration-error` | `replayPrevention` ist `'remote'`, aber kein `replayStore` wurde bereitgestellt |

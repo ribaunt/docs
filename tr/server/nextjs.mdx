@@ -35,7 +35,11 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
     
     export async function GET() {
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         return NextResponse.json({ challenges });
       } catch (error) {
         return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
@@ -43,7 +47,7 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
     }
     ```
 
-    `createChallenge(5, 4, 60)`, her biri 60 saniye geçerli olan, zorluk seviyesi 5 olan 4 imzalı challenge tokeni oluşturur. İşlev bir JWT dizeleri dizisi döndürür; bunu `{ challenges }` içine sarmak, Ribaunt widget'ının beklediği yanıt sözleşmesiyle eşleşir.
+    `createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 60 })`, her biri 60 saniye geçerli olan, zorluk seviyesi 5 olan 4 imzalı challenge tokeni oluşturur. İşlev bir JWT dizeleri dizisi döndürür; bunu `{ challenges }` içine sarmak, Ribaunt widget'ının beklediği yanıt sözleşmesiyle eşleşir.
   </Tab>
   <Tab title="verify/route.ts">
     ```ts
@@ -60,11 +64,11 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
         );
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => console.log('captcha warning', warning.reason),
       });
     
-      if (isValid) {
+      if (result.valid) {
         return NextResponse.json({ success: true });
       }
       return NextResponse.json(
@@ -74,7 +78,7 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
     }
     ```
 
-    `verifySolution`, JWT imzasını doğrular, her hash'in gerekli zorluğu karşıladığını kontrol eder, süresi dolmuş tokenleri reddeder ve (varsayılan olarak) mevcut süreç içinde token tekrar oynatmasını engeller. Bir `Promise<boolean>` döndürür.
+    `verifySolution`, JWT imzasını doğrular, her hash'in gerekli zorluğu karşıladığını kontrol eder, süresi dolmuş tokenleri reddeder ve (varsayılan olarak) mevcut süreç içinde token tekrar oynatmasını engeller. `valid`, `reason` ve `message` alanlarına sahip yapılandırılmış bir sonuç nesnesi döndürür.
   </Tab>
 </Tabs>
 
@@ -94,7 +98,11 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
       }
     
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         res.status(200).json({ challenges });
       } catch (error) {
         res.status(500).json({ error: 'Failed to generate challenge' });
@@ -118,13 +126,13 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
         return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => {
           console.log('captcha warning', warning.reason, warning.message);
         },
       });
     
-      if (isValid) {
+      if (result.valid) {
         return res.status(200).json({ success: true });
       }
       return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
@@ -141,7 +149,7 @@ Aşağıda gösterilen iki yol işleyici dosyasını oluşturun. Her dosya adlan
   Örnekler arası tekrar oynatmaları önlemek için, atomik bir dağıtık depo tarafından desteklenen bir `replayStore` adaptörü (örneğin `SET NX` işlemli Redis) ile birlikte `replayPrevention: 'remote'` iletin:
 
   ```ts
-  const isValid = await verifySolution(tokens, solutions, {
+  const result = await verifySolution(tokens, solutions, {
     replayPrevention: 'remote',
     replayStore: myRedisReplayStore,
   });

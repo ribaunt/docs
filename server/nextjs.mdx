@@ -35,7 +35,11 @@ Create the two route handler files shown below. Each file exports a named HTTP-m
     
     export async function GET() {
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         return NextResponse.json({ challenges });
       } catch (error) {
         return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
@@ -43,7 +47,7 @@ Create the two route handler files shown below. Each file exports a named HTTP-m
     }
     ```
 
-    `createChallenge(5, 4, 60)` generates 4 signed challenge tokens at difficulty 5, each valid for 60 seconds. The function returns an array of JWT strings; wrapping it in `{ challenges }` matches the response contract the Ribaunt widget expects.
+    `createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 60 })` generates 4 signed challenge tokens at difficulty 5, each valid for 60 seconds. The function returns an array of JWT strings; wrapping it in `{ challenges }` matches the response contract the Ribaunt widget expects.
   </Tab>
   <Tab title="verify/route.ts">
     ```ts
@@ -60,11 +64,11 @@ Create the two route handler files shown below. Each file exports a named HTTP-m
         );
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => console.log('captcha warning', warning.reason),
       });
     
-      if (isValid) {
+      if (result.valid) {
         return NextResponse.json({ success: true });
       }
       return NextResponse.json(
@@ -74,7 +78,7 @@ Create the two route handler files shown below. Each file exports a named HTTP-m
     }
     ```
 
-    `verifySolution` validates the JWT signature, checks that each hash meets the required difficulty, rejects expired tokens, and (by default) blocks token replay within the current process. It returns a `Promise<boolean>`.
+    `verifySolution` validates the JWT signature, checks that each hash meets the required difficulty, rejects expired tokens, and (by default) blocks token replay within the current process. It returns a structured result object with `valid`, `reason`, and `message`.
   </Tab>
 </Tabs>
 
@@ -94,7 +98,11 @@ If you are using the `pages/api/` directory, create the two handler files below.
       }
     
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         res.status(200).json({ challenges });
       } catch (error) {
         res.status(500).json({ error: 'Failed to generate challenge' });
@@ -118,13 +126,13 @@ If you are using the `pages/api/` directory, create the two handler files below.
         return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => {
           console.log('captcha warning', warning.reason, warning.message);
         },
       });
     
-      if (isValid) {
+      if (result.valid) {
         return res.status(200).json({ success: true });
       }
       return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
@@ -141,7 +149,7 @@ If you are using the `pages/api/` directory, create the two handler files below.
   To prevent cross-instance replays, pass `replayPrevention: 'remote'` together with a `replayStore` adapter backed by an atomic distributed store (for example Redis with a `SET NX` operation):
 
   ```ts
-  const isValid = await verifySolution(tokens, solutions, {
+  const result = await verifySolution(tokens, solutions, {
     replayPrevention: 'remote',
     replayStore: myRedisReplayStore,
   });

@@ -17,8 +17,11 @@ Every Ribaunt verification follows a three-step cycle.
     ```ts
     import { createChallenge } from 'ribaunt';
     
-    // Issue 4 challenges at difficulty 5, valid for 60 seconds
-    const challenges = createChallenge(5, 4, 60);
+    const challenges = createChallenge({
+      difficulty: 5,
+      amount: 4,
+      ttlSeconds: 60,
+    });
     ```
   </Step>
   <Step title="Browser solves the challenges">
@@ -32,15 +35,15 @@ Every Ribaunt verification follows a three-step cycle.
     - Recomputes `SHA-256(challenge + nonce)` and confirms it starts with the required leading zeros
     - Checks the `jti` against the replay store to ensure the token has never been used before
 
-    Only if every check passes does `verifySolution()` return `true`.
+    Only if every check passes does `verifySolution()` return `{ valid: true }`.
 
     ```ts
     import { verifySolution } from 'ribaunt';
     
-    const valid = await verifySolution(tokens, solutions);
+    const result = await verifySolution(tokens, solutions);
     
-    if (!valid) {
-      return res.status(400).json({ error: 'Invalid CAPTCHA solution' });
+    if (!result.valid) {
+      return res.status(400).json({ error: result.message ?? 'Invalid CAPTCHA solution' });
     }
     ```
   </Step>
@@ -69,9 +72,9 @@ The `difficulty` parameter controls how many leading zeros the winning hash must
 
 | Setting | Approximate solve time | Recommended use |
 | --- | --- | --- |
-| `createChallenge(4, 4, 30)` | Milliseconds | Fast / background checks |
-| `createChallenge(5, 4, 60)` | ~1 second | Moderate / form submission |
-| `createChallenge(5, 8, 120)` | ~2 seconds | High / sensitive actions |
+| `createChallenge({ difficulty: 4, amount: 4, ttlSeconds: 30 })` | Milliseconds | Fast / background checks |
+| `createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 60 })` | ~1 second | Moderate / form submission |
+| `createChallenge({ difficulty: 5, amount: 8, ttlSeconds: 120 })` | ~2 seconds | High / sensitive actions |
 
 <Warning>
   Values above `6` may cause browsers to hang. Do not let users or external input control `difficulty`, `amount`, or `ttlSeconds` without validation.

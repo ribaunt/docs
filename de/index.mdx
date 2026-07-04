@@ -14,10 +14,10 @@ Ribaunt ist eine zustandslose Proof-of-Work-CAPTCHA-Bibliothek für Node.js und 
     Installiere Ribaunt, konfiguriere dein Secret, füge zwei Server-Endpunkte hinzu und binde das Browser-Widget in unter fünf Minuten ein.
   </Card>
   <Card title="Server-Einrichtung" icon="server" href="/server/express">
-    Vollständiges Express-Server-Beispiel mit Challenge- und Verify-Endpunkten, Wiederholungsschutz und TypeScript-Typen.
+    Vollständiges Express-Server-Beispiel mit Challenge- und Verify-Endpunkten, Wiederholungsschutz, Kontextbindung und TypeScript-Typen.
   </Card>
   <Card title="API-Referenz" icon="code" href="/api/create-challenge">
-    Vollständige Referenz für `createChallenge`, `verifySolution`, `solveChallenge` und alle Konfigurationsoptionen.
+    Vollständige Referenz für `createChallenge`, `verifySolution`, `solveChallenge`, adaptive Workload-Auswahl und Widget-Konfiguration.
   </Card>
 </CardGroup>
 
@@ -45,14 +45,18 @@ Ribaunt ist eine zustandslose Proof-of-Work-CAPTCHA-Bibliothek für Node.js und 
     import { createChallenge, verifySolution } from 'ribaunt';
 
     app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge(5, 4, 120);
+      const challenges = createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 120 });
       res.json({ challenges });
     });
 
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
-      const valid = await verifySolution(tokens, solutions);
-      if (!valid) return res.status(400).json({ success: false });
+      const result = await verifySolution(tokens, solutions);
+
+      if (!result.valid) {
+        return res.status(400).json({ success: false, error: result.reason, message: result.message });
+      }
+
       return res.json({ success: true });
     });
     ```
@@ -71,8 +75,8 @@ Ribaunt ist eine zustandslose Proof-of-Work-CAPTCHA-Bibliothek für Node.js und 
 
     <script>
       document.querySelector('ribaunt-widget')
-        .addEventListener('verify', (e) => {
-          console.log('Verified!', e.detail.solutions);
+        .addEventListener('verify', (event) => {
+          console.log('Verified!', event.detail.solutions);
         });
     </script>
     ```

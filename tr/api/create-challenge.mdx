@@ -1,7 +1,7 @@
 ---
 title: "createChallenge"
 sidebarTitle: "createChallenge"
-description: "createChallenge(difficulty, amount, ttlSeconds), iş kanıtı doğrulaması için imzalı JWT challenge token'ları oluşturur."
+description: "createChallenge(), iş kanıtı doğrulaması için imzalı JWT challenge token'ları oluşturur."
 ---
 
 `createChallenge()`, `ribaunt`'tan içe aktarılır ve bir veya daha fazla iş kanıtı challenge token'ı oluşturmak için sunucu tarafında çağrılır. Her token, tarayıcı çözücüsünün çözüp üzerinde çalıştığı imzalı bir JWT'dir.
@@ -9,7 +9,7 @@ description: "createChallenge(difficulty, amount, ttlSeconds), iş kanıtı doğ
 ## İçe aktarma
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 ```
 
 ## İmza
@@ -20,9 +20,16 @@ function createChallenge(
   amount?: number,
   ttlSeconds?: number
 ): ChallengeToken[]
+
+function createChallenge(options: ChallengeOptions): ChallengeToken[]
 ```
 
 ## Parametreler
+
+`createChallenge()` iki farklı şekilde çağrılabilir:
+
+- Konumsal argümanlar: `createChallenge(difficulty, amount, ttlSeconds)`
+- Seçenekler nesnesi: `createChallenge({ difficulty, amount, ttlSeconds, context, workload })`
 
 <ParamField path="difficulty" default="5" type="number">
   SHA-256 hash'inde gereken öndeki sıfır onaltılık basamak sayısı. Her artış çözüm süresini kabaca iki katına çıkarır. 6'nın üzerindeki değerler tarayıcıların donmasına neden olabilir.
@@ -33,48 +40,77 @@ function createChallenge(
 </ParamField>
 
 <ParamField path="ttlSeconds" default="30" type="number">
-  Saniye cinsinden challenge token ömrü. Süre dolduktan sonra gönderilen token'lar `verifySolution` tarafından reddedilir.
+  Saniye cinsinden challenge token ömrü. Süre dolduktan sonra gönderilen token'lar `verifySolution()` tarafından reddedilir.
+</ParamField>
+
+<ParamField path="context" type="string">
+  Challenge tokenine bağlanan isteğe bağlı bir bağlam (scope) değeri. `verifySolution({ context })` ile aynı değeri kullanarak doğrulamanın aynı bağlamı kullandığını zorlayın.
+</ParamField>
+
+<ParamField path="workload" type="Pick<Workload, 'difficulty' | 'amount'>">
+  Zorluk ve miktarı birlikte ayarlamak için isteğe bağlı kısa yol. Challenge yapılandırmasını tek bir nesnede tutmak istiyorsanız kullanın.
 </ParamField>
 
 ## Dönüş değeri
 
 `ChallengeToken[]` döndürür — imzalı JWT dizelerinden oluşan bir dizi. Bu diziyi tarayıcıya `{ challenges: tokens }` olarak gönderin.
 
-## Örnek
+## Örnekler
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 
-// Fast: low difficulty, short TTL (login forms, comment boxes)
-const fast = createChallenge(4, 4, 30);
+const fast = createChallenge({
+  difficulty: 4,
+  amount: 4,
+  ttlSeconds: 30,
+});
 
-// Moderate: standard configuration for most use cases
-const moderate = createChallenge(5, 4, 120);
+const moderate = createChallenge({
+  difficulty: 5,
+  amount: 4,
+  ttlSeconds: 120,
+  context: 'signup',
+});
 
-// High: sensitive actions (account creation, password reset)
-const high = createChallenge(5, 8, 120);
+const workload = selectWorkload({
+  riskScore: 75,
+  targetDurationMs: 750,
+});
+
+const adaptive = createChallenge({ workload, ttlSeconds: 120 });
 ```
 
-## Önerilen ayarlar
+## Uyarlamalı iş yükü
 
-| Kullanım durumu | Zorluk | Miktar | TTL |
-| --- | --- | --- | --- |
-| Hızlı / arka plan | 4 | 4 | 30 |
-| Orta / form gönderimi | 5 | 4 | 60 |
-| Yüksek / hassas eylemler | 5 | 8 | 120 |
+Risk puanına ve hedef çözüm süresine göre zorluk ve miktarı seçmek için `selectWorkload()` kullanın.
+
+```ts
+const workload = selectWorkload({
+  riskScore: 70,
+  targetDurationMs: 800,
+  calibration: {
+    iterations: 250_000,
+    durationMs: 200,
+  },
+});
+```
+
+`selectWorkload()` yapılandırılmış sınırları dikkate alır ve `difficulty`, `amount` ve `estimatedAttempts` içeren bir `Workload` nesnesi döndürür.
 
 ## Doğrulama
 
-`createChallenge()` her üç parametreyi de çalışma zamanında doğrular ve herhangi bir değer geçersizse hata fırlatır:
+`createChallenge()` girişlerini çalışma zamanında doğrular ve bir şey geçersizse hata fırlatır:
 
 - **`difficulty`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
 - **`amount`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
 - **`ttlSeconds`** — sonlu bir sayı ve en az `1` olmalıdır. Kesirli değerler `Math.floor()` ile aşağı yuvarlanır.
+- **`workload`** — belirtilirse, seçilen değerler yine de yapılandırılmış sınırlar dahilinde olmalıdır.
 
 <Warning>
   Kullanıcı kontrolündeki istek parametrelerinin doğrulama olmadan doğrudan `createChallenge()`'a akmasına asla izin vermeyin.
 </Warning>
 
 <Note>
-  `RIBAUNT_SECRET`'in bir ortam değişkeni olarak ayarlanmasını gerektirir. Gizli anahtar eksikse `createChallenge()` hata fırlatır.
+  `RIBAUNT_SECRET`'in bir ortam değişkeni olarak ayarlanmasını gerektirir. Gizli anahtar eksikse veya 32 UTF-8 bayttan kısa ise `createChallenge()` hata fırlatır.
 </Note>

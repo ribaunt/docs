@@ -52,7 +52,7 @@ import { LocalReplayStore } from 'ribaunt';
 
 const store = new LocalReplayStore();
 
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: store,
 });

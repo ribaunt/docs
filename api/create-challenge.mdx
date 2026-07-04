@@ -1,7 +1,7 @@
 ---
 title: "createChallenge"
 sidebarTitle: "createChallenge"
-description: "createChallenge(difficulty, amount, ttlSeconds) issues signed JWT challenge tokens for Ribaunt proof-of-work CAPTCHA verification on the server."
+description: "createChallenge() issues signed JWT challenge tokens for Ribaunt proof-of-work CAPTCHA verification on the server."
 ---
 
 `createChallenge()` is imported from `ribaunt` and called server-side to generate one or more proof-of-work challenge tokens. Each token is a signed JWT that the browser solver decodes and works against.
@@ -9,7 +9,7 @@ description: "createChallenge(difficulty, amount, ttlSeconds) issues signed JWT 
 ## Import
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 ```
 
 ## Signature
@@ -20,9 +20,16 @@ function createChallenge(
   amount?: number,
   ttlSeconds?: number
 ): ChallengeToken[]
+
+function createChallenge(options: ChallengeOptions): ChallengeToken[]
 ```
 
 ## Parameters
+
+You can call `createChallenge()` in either of two styles:
+
+- positional arguments: `createChallenge(difficulty, amount, ttlSeconds)`
+- an options object: `createChallenge({ difficulty, amount, ttlSeconds, context, workload })`
 
 <ParamField path="difficulty" default="5" type="number">
   Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang.
@@ -36,45 +43,78 @@ function createChallenge(
   Challenge token lifetime in seconds. Tokens submitted after expiry are rejected by `verifySolution`.
 </ParamField>
 
+<ParamField path="context" type="string">
+  Optional scope string that is bound into the challenge token. Supply the same value to `verifySolution({ context })` to require that the same context is used when verifying.
+</ParamField>
+
+<ParamField path="workload" type="Pick<Workload, 'difficulty' | 'amount'>">
+  Optional shorthand for setting the challenge difficulty and amount together. Use this when you want to keep the challenge configuration in a single object.
+</ParamField>
+
 ## Return value
 
 Returns `ChallengeToken[]` — an array of signed JWT strings. Send this array to the browser as `{ challenges: tokens }`.
 
-## Example
+## Examples
 
 ```ts
-import { createChallenge } from 'ribaunt';
+import { createChallenge, selectWorkload } from 'ribaunt';
 
-// Fast: low difficulty, short TTL (login forms, comment boxes)
-const fast = createChallenge(4, 4, 30);
+const fast = createChallenge({
+  difficulty: 4,
+  amount: 4,
+  ttlSeconds: 30,
+});
 
-// Moderate: standard configuration for most use cases
-const moderate = createChallenge(5, 4, 120);
+const moderate = createChallenge({
+  difficulty: 5,
+  amount: 4,
+  ttlSeconds: 120,
+  context: 'signup',
+});
 
-// High: sensitive actions (account creation, password reset)
-const high = createChallenge(5, 8, 120);
+// Adaptive workload from a risk score and target duration
+const workload = selectWorkload({
+  riskScore: 75,
+  targetDurationMs: 750,
+});
+
+const adaptive = createChallenge({
+  workload,
+  ttlSeconds: 120,
+});
 ```
 
-## Recommended settings
+## Adaptive workload
 
-| Use case | Difficulty | Amount | TTL |
-| --- | --- | --- | --- |
-| Fast / background | 4 | 4 | 30 |
-| Moderate / form submission | 5 | 4 | 60 |
-| High / sensitive actions | 5 | 8 | 120 |
+Use `selectWorkload()` when you want the server to choose a difficulty and amount based on a risk score and a target solve duration.
+
+```ts
+const workload = selectWorkload({
+  riskScore: 70,
+  targetDurationMs: 800,
+  calibration: {
+    iterations: 250_000,
+    durationMs: 200,
+  },
+});
+```
+
+`selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, and `estimatedAttempts`.
 
 ## Validation
 
-`createChallenge()` validates all three parameters at runtime and throws if any value is invalid:
+`createChallenge()` validates its inputs at runtime and throws if anything is invalid:
 
 - **`difficulty`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
 - **`amount`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
 - **`ttlSeconds`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
+- **`workload`** — if you provide it, the selected values must still fit the configured bounds.
 
 <Warning>
   Never let user-controlled request parameters flow directly into `createChallenge()` without validation.
 </Warning>
 
 <Note>
-  Requires `RIBAUNT_SECRET` to be set as an environment variable. `createChallenge()` will throw if the secret is missing.
+  Requires `RIBAUNT_SECRET` to be set as an environment variable. `createChallenge()` throws if the secret is missing or shorter than 32 UTF-8 bytes.
 </Note>

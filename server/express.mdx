@@ -15,9 +15,10 @@ This guide walks you through adding two Ribaunt CAPTCHA endpoints to an Express.
 ## Best practices
 
 - **Rate limit the challenge endpoint.** Use [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit) to cap how many challenges a single IP can request per minute. Without this, an attacker can farm tokens for offline brute-forcing.
-- **Link verification to a session.** After a successful `verifySolution` call, return a signed JWT or set an HTTP-only cookie. Require that token on your protected form submission endpoint so you know the CAPTCHA was solved by the same user making the downstream request.
-- **Validate inputs before calling `createChallenge`.** If `difficulty`, `amount`, or `ttlSeconds` come from config or request data, check that they are positive finite integers first — invalid values throw.
-- **Use `replayPrevention: 'remote'` for multi-instance or serverless deployments.** The default `'local'` store is per-process, so it cannot detect replays across separate Node.js processes. Pass a distributed store adapter (e.g. backed by Redis) and set `replayPrevention: 'remote'` in your `verifySolution` options.
+- **Link verification to a session.** After a successful `verifySolution()` call, return a signed JWT or set an HTTP-only cookie. Require that token on your protected form submission endpoint so you know the CAPTCHA was solved by the same user making the downstream request.
+- **Validate inputs before calling `createChallenge()`.** If `difficulty`, `amount`, or `ttlSeconds` come from config or request data, check that they are positive finite integers first — invalid values throw.
+- **Use `replayPrevention: 'remote'` for multi-instance or serverless deployments.** The default `'local'` store is per-process, so it cannot detect replays across separate Node.js processes. Pass a distributed store adapter (e.g. backed by Redis) and set `replayPrevention: 'remote'` in your `verifySolution()` options.
+- **Bind challenge context when needed.** Use `context` in `createChallenge()` and `verifySolution()` when you want the same token to be valid only for a specific flow, such as a signup form or password reset request.
 - **Use `onWarning` for telemetry.** The `onWarning` callback receives a structured `VerifyWarning` object with a typed `reason` (`'invalid-token'`, `'expired-token'`, `'replay-detected'`, etc.) and a human-readable `message`. Wire it to your observability pipeline without enabling verbose debug logs in production.
 
 <Warning>

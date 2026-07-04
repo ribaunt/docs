@@ -4,7 +4,7 @@ sidebarTitle: "solveChallenge"
 description: "solveChallenge(token, options?) solves JWT challenge tokens synchronously. Use in tests and tooling — not in production request handlers."
 ---
 
-`solveChallenge()` runs the same proof-of-work algorithm used by the browser widget, but synchronously in Node.js. It's designed for automated testing of your challenge and verify endpoints — not for production use in request handlers.
+`solveChallenge()` runs the same proof-of-work algorithm used by the browser widget, but synchronously in Node.js. It is designed for automated testing of your challenge and verify endpoints — not for production use in request handlers.
 
 ## Import
 
@@ -57,13 +57,12 @@ Returns a `ChallengeSolution` (`{ nonce: string; hash: string }`) for a single t
 ```ts
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
-// Use low difficulty in tests for speed
-const tokens = createChallenge(3, 2, 60);
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 60 });
 const solutions = solveChallenge(tokens);
 
 if (solutions) {
-  const valid = await verifySolution(tokens, solutions);
-  console.log('Valid:', valid); // true
+  const result = await verifySolution(tokens, solutions);
+  console.log('Valid:', result.valid);
 }
 ```
 
@@ -81,7 +80,7 @@ if (!solution) {
 ```
 
 <Warning>
-  `solveChallenge` is synchronous and CPU-intensive. Never call it in a production HTTP request handler — it will block your Node.js event loop.
+  `solveChallenge()` is synchronous and CPU-intensive. Never call it in a production HTTP request handler — it will block your Node.js event loop.
 </Warning>
 
 <Tip>

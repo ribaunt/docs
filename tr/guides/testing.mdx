@@ -13,15 +13,10 @@ Ribaunt, eşzamanlı sunucu tarafı bir çözücü olan `solveChallenge()` sağl
 ```ts
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
-// Generate a challenge (as your server would)
-const tokens = createChallenge(3, 2, 30); // difficulty 3, 2 challenges, 30s TTL
-
-// Solve it (as the browser would)
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
-
-// Verify the solution (as your verify endpoint would)
-const valid = await verifySolution(tokens, solutions);
-console.assert(valid === true);
+const result = await verifySolution(tokens, solutions);
+console.assert(result.valid === true);
 ```
 
 <Tip>
@@ -46,14 +41,14 @@ Koruyuculardan herhangi birine ulaşılırsa, `solveChallenge` o token için `un
 Ribaunt'un varsayılan `local` yeniden oynatma modu, aynı işlem içinde herhangi bir token'ın birden fazla kez doğrulanmasını engeller. Aynı çözümü iki kez göndererek bu davranışı doğrudan testlerinizde onaylayabilirsiniz.
 
 ```ts
-const tokens = createChallenge(3, 2, 30);
+const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
 
 const first = await verifySolution(tokens, solutions);
-console.assert(first === true);  // Passes
+console.assert(first.valid === true);  // Passes
 
 const second = await verifySolution(tokens, solutions);
-console.assert(second === false); // Rejected — replay detected
+console.assert(second.valid === false); // Rejected — replay detected
 ```
 
 İkinci çağrı `false` döndürür çünkü challenge JTI'ları ilk kullanımda tüketilir.
@@ -63,7 +58,7 @@ console.assert(second === false); // Rejected — replay detected
 Bazı birim testleri, aynı token'ları birden fazla onaylama arasında yeniden kullanmaya ihtiyaç duyar — örneğin, geçerli bir çözümün yeniden oynatma durumundan bağımsız olarak iş mantığınızı her zaman geçtiğini test etmek için. Tek bir `verifySolution` çağrısı için yeniden oynatma korumasını devre dışı bırakabilirsiniz.
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'disabled',
 });
 ```
@@ -79,7 +74,7 @@ Bir doğrulamanın _neden_ başarısız olduğunu — yalnızca `false` döndür
 ```ts
 const warnings: string[] = [];
 
-const valid = await verifySolution(tokens, badSolutions, {
+const result = await verifySolution(tokens, badSolutions, {
   onWarning: (w) => warnings.push(w.reason),
 });
 

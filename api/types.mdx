@@ -25,6 +25,38 @@ interface ChallengeSolution {
 }
 ```
 
+## `ChallengeOptions`
+
+The options object accepted by `createChallenge()`.
+
+```ts
+interface ChallengeOptions {
+  difficulty?: number;
+  amount?: number;
+  ttlSeconds?: number;
+  context?: string;
+  workload?: Pick<Workload, 'difficulty' | 'amount'>;
+}
+```
+
+## `Workload` and `AdaptiveWorkloadOptions`
+
+`selectWorkload()` returns a `Workload` object and accepts an optional adaptive configuration.
+
+```ts
+interface AdaptiveWorkloadOptions extends WorkloadBounds {
+  riskScore?: number;
+  targetDurationMs?: number;
+  calibration?: ClientCalibration;
+}
+
+interface Workload {
+  difficulty: number;
+  amount: number;
+  estimatedAttempts: number;
+}
+```
+
 ## `ReplayStore`
 
 The interface you implement to provide distributed replay prevention when `replayPrevention` is set to `'remote'`. You pass your implementation to `verifySolution()` via `options.replayStore`.
@@ -32,6 +64,7 @@ The interface you implement to provide distributed replay prevention when `repla
 ```ts
 interface ReplayStore {
   consume(jti: string, expiresAt: number): Promise<boolean>;
+  consumeMany?(jtis: string[], expiresAt: number): Promise<boolean>;
 }
 ```
 
@@ -44,6 +77,7 @@ The built-in, process-local implementation of `ReplayStore` exported from `ribau
 ```ts
 class LocalReplayStore implements ReplayStore {
   async consume(jti: string, expiresAt: number): Promise<boolean>;
+  async consumeMany(jtis: string[], expiresAt: number): Promise<boolean>;
 }
 ```
 
@@ -52,7 +86,7 @@ import { LocalReplayStore } from 'ribaunt';
 
 const store = new LocalReplayStore();
 
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: store,
 });
@@ -80,14 +114,25 @@ Optional configuration passed as the third argument to `verifySolution()`.
 interface VerifySolutionOptions {
   replayPrevention?: ReplayPreventionMode; // default: 'local'
   replayStore?: ReplayStore;               // required when replayPrevention is 'remote'
-  debug?: boolean;                          // default: true in development
+  context?: string;                        // optional challenge scope
+  debug?: boolean;                         // default: true in development
   onWarning?: (warning: VerifyWarning) => void;
 }
 ```
 
+## `VerifySolutionResult`
+
+The structured result returned by `verifySolution()`.
+
+```ts
+type VerifySolutionResult =
+  | { valid: true }
+  | { valid: false; reason: VerifyFailureReason; message: string };
+```
+
 ## `VerifyWarning`
 
-The structured warning object passed to the `onWarning` callback when `verifySolution()` encounters a problem. Allows you to capture telemetry without enabling console output.
+The structured warning object passed to the `onWarning` callback when `verifySolution()` encounters a problem. This allows you to capture telemetry without enabling console output.
 
 ```ts
 interface VerifyWarning {
@@ -97,17 +142,20 @@ interface VerifyWarning {
 }
 ```
 
-## `VerifyWarningReason`
+## `VerifyFailureReason` and `VerifyWarningReason`
 
 A string union describing the category of verification failure. You can use this to route warnings to different monitoring channels or metrics.
 
 ```ts
-type VerifyWarningReason =
+type VerifyFailureReason =
   | 'invalid-token'
   | 'expired-token'
   | 'invalid-solution'
+  | 'context-mismatch'
   | 'replay-detected'
   | 'configuration-error';
+
+type VerifyWarningReason = VerifyFailureReason;
 ```
 
 ## `SolveChallengeOptions`
@@ -126,7 +174,7 @@ interface SolveChallengeOptions {
 Imported from `ribaunt/widget`. Represents the current state of the CAPTCHA widget in the browser.
 
 ```ts
-type WidgetState = 'initial' | 'verifying' | 'done' | 'error';
+type WidgetState = 'initial' | 'fetching' | 'solving' | 'verifying' | 'done' | 'error';
 ```
 
 ## `RibauntWidgetHandle`
@@ -136,7 +184,7 @@ Imported from `ribaunt/widget-react`. This is the imperative handle exposed via 
 ```ts
 interface RibauntWidgetHandle {
   reset(): void;
-  getState(): WidgetState | undefined;
+  getState(): WidgetState | '';
   startVerification(): void;
 }
 ```

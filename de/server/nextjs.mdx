@@ -35,7 +35,11 @@ Erstelle die beiden unten gezeigten Route-Handler-Dateien. Jede Datei exportiert
     
     export async function GET() {
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         return NextResponse.json({ challenges });
       } catch (error) {
         return NextResponse.json({ error: 'Failed to generate challenge' }, { status: 500 });
@@ -43,7 +47,7 @@ Erstelle die beiden unten gezeigten Route-Handler-Dateien. Jede Datei exportiert
     }
     ```
 
-    `createChallenge(5, 4, 60)` erzeugt 4 signierte Challenge-Tokens mit Schwierigkeit 5, jeweils 60 Sekunden gültig. Die Funktion gibt ein Array von JWT-Strings zurück; das Einpacken in `{ challenges }` entspricht dem Antwortvertrag, den das Ribaunt-Widget erwartet.
+    `createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 60 })` erzeugt 4 signierte Challenge-Tokens mit Schwierigkeit 5, jeweils 60 Sekunden gültig. Die Funktion gibt ein Array von JWT-Strings zurück; das Einpacken in `{ challenges }` entspricht dem Antwortvertrag, den das Ribaunt-Widget erwartet.
   </Tab>
   <Tab title="verify/route.ts">
     ```ts
@@ -60,11 +64,11 @@ Erstelle die beiden unten gezeigten Route-Handler-Dateien. Jede Datei exportiert
         );
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => console.log('captcha warning', warning.reason),
       });
     
-      if (isValid) {
+      if (result.valid) {
         return NextResponse.json({ success: true });
       }
       return NextResponse.json(
@@ -74,7 +78,7 @@ Erstelle die beiden unten gezeigten Route-Handler-Dateien. Jede Datei exportiert
     }
     ```
 
-    `verifySolution` validiert die JWT-Signatur, prüft, dass jeder Hash die erforderliche Schwierigkeit erfüllt, lehnt abgelaufene Tokens ab und blockiert (standardmäßig) das Wiederholen von Tokens innerhalb des aktuellen Prozesses. Es gibt ein `Promise<boolean>` zurück.
+    `verifySolution` validiert die JWT-Signatur, prüft, dass jeder Hash die erforderliche Schwierigkeit erfüllt, lehnt abgelaufene Tokens ab und blockiert (standardmäßig) das Wiederholen von Tokens innerhalb des aktuellen Prozesses. Es gibt ein strukturiertes Ergebnisobjekt mit `valid`, `reason` und `message` zurück.
   </Tab>
 </Tabs>
 
@@ -94,7 +98,11 @@ Wenn du das Verzeichnis `pages/api/` verwendest, erstelle die beiden Handler-Dat
       }
     
       try {
-        const challenges = createChallenge(5, 4, 60);
+        const challenges = createChallenge({
+          difficulty: 5,
+          amount: 4,
+          ttlSeconds: 60,
+        });
         res.status(200).json({ challenges });
       } catch (error) {
         res.status(500).json({ error: 'Failed to generate challenge' });
@@ -118,13 +126,13 @@ Wenn du das Verzeichnis `pages/api/` verwendest, erstelle die beiden Handler-Dat
         return res.status(400).json({ success: false, error: 'Missing tokens or solutions' });
       }
     
-      const isValid = await verifySolution(tokens, solutions, {
+      const result = await verifySolution(tokens, solutions, {
         onWarning: (warning) => {
           console.log('captcha warning', warning.reason, warning.message);
         },
       });
     
-      if (isValid) {
+      if (result.valid) {
         return res.status(200).json({ success: true });
       }
       return res.status(400).json({ success: false, error: 'Invalid or expired CAPTCHA solution' });
@@ -141,7 +149,7 @@ Wenn du das Verzeichnis `pages/api/` verwendest, erstelle die beiden Handler-Dat
   Um Cross-Instance-Replays zu verhindern, übergib `replayPrevention: 'remote'` zusammen mit einem `replayStore`-Adapter, der von einem atomaren verteilten Store gestützt wird (zum Beispiel Redis mit einer `SET NX`-Operation):
 
   ```ts
-  const isValid = await verifySolution(tokens, solutions, {
+  const result = await verifySolution(tokens, solutions, {
     replayPrevention: 'remote',
     replayStore: myRedisReplayStore,
   });

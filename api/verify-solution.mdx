@@ -1,10 +1,10 @@
 ---
 title: "verifySolution"
 sidebarTitle: "verifySolution"
-description: "verifySolution(token, nonce, options?) validates JWT signatures, hash proofs, expiry, and replay prevention. Returns Promise<boolean>."
+description: "verifySolution() validates JWT signatures, hash proofs, expiry, replay protection, and optional context binding. Returns a structured result object."
 ---
 
-`verifySolution()` is called server-side in your verify endpoint to check that the browser correctly solved all challenge tokens. It checks the JWT signature, token expiry, the SHA-256 hash proof, and (by default) prevents token reuse.
+`verifySolution()` is called server-side in your verify endpoint to check that the browser correctly solved all challenge tokens. It validates the JWT signature, token expiry, the SHA-256 hash proof, replay state, and optional context binding.
 
 ## Import
 
@@ -19,7 +19,7 @@ function verifySolution(
   token: ChallengeToken | ChallengeToken[],
   nonce: number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[],
   options?: VerifySolutionOptions
-): Promise<boolean>
+): Promise<VerifySolutionResult>
 ```
 
 ## Parameters
@@ -46,13 +46,24 @@ function verifySolution(
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Controls how token reuse is prevented |
-| `replayStore` | `ReplayStore` | `undefined` | Required when `replayPrevention` is `'remote'`. Implements the `consume()` method. |
-| `debug` | `boolean` | auto (true in dev) | Log verification warnings to console |
+| `replayStore` | `ReplayStore` | `undefined` | Required when `replayPrevention` is `'remote'` |
+| `context` | `string` | `undefined` | Requires the same context value that was used when the challenge was issued |
+| `debug` | `boolean` | auto (true in development) | Logs verification warnings to the console |
 | `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Callback for structured warning events |
 
 ## Return value
 
-`Promise<boolean>`. Returns `true` only if ALL tokens have valid solutions and pass replay checks. Returns `false` for any failure without throwing.
+`Promise<VerifySolutionResult>`. The function returns either:
+
+```ts
+{ valid: true }
+```
+
+or
+
+```ts
+{ valid: false, reason, message }
+```
 
 ## Examples
 
@@ -60,28 +71,33 @@ Basic usage:
 
 ```ts
 const { tokens, solutions } = req.body;
-const valid = await verifySolution(tokens, solutions);
+const result = await verifySolution(tokens, solutions);
+
+if (!result.valid) {
+  return res.status(400).json({ success: false, error: result.reason });
+}
 ```
 
 With structured warning telemetry:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
+  context: 'signup',
   onWarning: (warning) => {
-    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'replay-detected' | 'configuration-error'
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'context-mismatch' | 'replay-detected' | 'configuration-error'
     console.log('captcha warning', warning.reason, warning.message);
   },
 });
 ```
 
-With remote replay store:
+With a remote replay store:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: {
     consume: async (jti, expiresAt) => {
-      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EX)
+      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EXAT)
       return await redis.set(jti, '1', 'NX', 'EXAT', expiresAt) !== null;
     },
   },
@@ -95,5 +111,6 @@ const valid = await verifySolution(tokens, solutions, {
 | `invalid-token` | JWT signature is invalid or malformed |
 | `expired-token` | Challenge TTL has passed |
 | `invalid-solution` | The nonce does not produce a valid hash |
+| `context-mismatch` | The supplied context does not match the token's bound context |
 | `replay-detected` | Token was already consumed |
-| `configuration-error` | `replayPrevention` is `'remote'` but no `replayStore` provided |
+| `configuration-error` | `replayPrevention` is `'remote'` but no `replayStore` was provided |

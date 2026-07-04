@@ -22,7 +22,7 @@ Der lokale Modus erfordert keine Konfiguration. Wenn du `verifySolution()` ohne 
 
 ```ts
 // Default behavior — local replay protection is active
-const valid = await verifySolution(tokens, solutions);
+const result = await verifySolution(tokens, solutions);
 ```
 
 Dies ist die richtige Wahl für die meisten klassischen Node.js-Deployments, bei denen ein einzelner langlaufender Prozess alle Anfragen bearbeitet. Abgelaufene Token-IDs werden bei neuen Verifizierungen automatisch bereinigt, sodass der Speicherverbrauch begrenzt bleibt.
@@ -38,7 +38,7 @@ Wenn deine Anwendung über mehrere Node.js-Instanzen läuft, Serverless-Funktion
 Im `remote`-Modus stellst du ein `replayStore`-Objekt bereit, das das `ReplayStore`-Interface implementiert. Ribaunt ruft `replayStore.consume(jti, expiresAt)` für jedes verifizierte Token auf. Deine Implementierung ist für die atomare Operation „als verwendet markieren" verantwortlich – das Standardmuster mit Redis oder Valkey ist `SET NX EX` (nur setzen, wenn nicht vorhanden, mit Ablauf).
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: {
     consume: async (jti, expiresAt) => {
@@ -65,7 +65,7 @@ Der `expiresAt`-Wert ist ein Unix-Zeitstempel in Sekunden – gib ihn direkt als
 Wenn du dich bisher auf das alte Verhalten verlassen hast, bei dem `verifySolution()` keine Replay-Prüfungen hatte, kannst du dieses Verhalten während der Migration explizit wiederherstellen:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'disabled',
 });
 ```

@@ -14,10 +14,10 @@ Ribaunt, Node.js ve modern tarayıcılar için durumsuz bir iş kanıtı (proof-
     Ribaunt'u yükleyin, gizli anahtarınızı yapılandırın, iki sunucu uç noktası ekleyin ve tarayıcı widget'ını beş dakikadan kısa sürede gömün.
   </Card>
   <Card title="Sunucu Kurulumu" icon="server" href="/server/express">
-    Challenge ve verify uç noktaları, tekrar oynatma koruması ve TypeScript türleriyle eksiksiz bir Express sunucu örneği.
+    Challenge ve verify uç noktaları, tekrar oynatma koruması, bağlamsal doğrulama ve TypeScript türleriyle eksiksiz bir Express sunucu örneği.
   </Card>
   <Card title="API Referansı" icon="code" href="/api/create-challenge">
-    `createChallenge`, `verifySolution`, `solveChallenge` ve tüm yapılandırma seçenekleri için eksiksiz referans.
+    `createChallenge`, `verifySolution`, `solveChallenge`, uyarlamalı iş yükü seçimi ve widget yapılandırması için eksiksiz referans.
   </Card>
 </CardGroup>
 
@@ -45,14 +45,21 @@ Ribaunt, Node.js ve modern tarayıcılar için durumsuz bir iş kanıtı (proof-
     import { createChallenge, verifySolution } from 'ribaunt';
 
     app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge(5, 4, 120);
+      const challenges = createChallenge({
+        difficulty: 5,
+        amount: 4,
+        ttlSeconds: 120,
+        context: 'signup',
+      });
       res.json({ challenges });
     });
 
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
-      const valid = await verifySolution(tokens, solutions);
-      if (!valid) return res.status(400).json({ success: false });
+      const result = await verifySolution(tokens, solutions, { context: 'signup' });
+      if (!result.valid) {
+        return res.status(400).json({ success: false, error: result.reason, message: result.message });
+      }
       return res.json({ success: true });
     });
     ```

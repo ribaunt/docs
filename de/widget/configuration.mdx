@@ -1,14 +1,14 @@
 ---
 title: "Konfiguration"
 sidebarTitle: "Konfiguration"
-description: "Vollständige Referenz für alle HTML-Attribute und React-Props von ribaunt-widget: Endpunkte, Auto-Verify, Timeout, Disabled-Zustand und Challenge-Antwortformate."
+description: "Vollständige Referenz für alle HTML-Attribute und React-Props von ribaunt-widget: Endpunkte, Auto-Verify, Timeout, Worker-Mode, Challenge-Methode, Kalibrierung und Challenge-Antwortformate."
 ---
 
 Die `<ribaunt-widget>`-Web-Komponente und ihr React-Wrapper teilen sich dieselbe Konfigurationsoberfläche. HTML verwendet Attribute in Kebab-Case; React verwendet Props in CamelCase. Du kannst beide je nach Stack austauschbar nutzen — alles hier Beschriebene gilt für beide, sofern nicht anders angegeben.
 
 ## Kurzbeispiel
 
-Das folgende Snippet zeigt jedes verfügbare Attribut, gesetzt am HTML-Element:
+Das folgende Snippet zeigt die am häufigsten verwendeten Attribute am HTML-Element:
 
 ```html
 <ribaunt-widget
@@ -18,6 +18,9 @@ Das folgende Snippet zeigt jedes verfügbare Attribut, gesetzt am HTML-Element:
   show-warning="false"
   warning-message="Verification may take longer on this device."
   solve-timeout="15000"
+  worker-mode="preferred"
+  challenge-method="GET"
+  calibrate="true"
   disabled="false"
 ></ribaunt-widget>
 ```
@@ -28,11 +31,14 @@ Das folgende Snippet zeigt jedes verfügbare Attribut, gesetzt am HTML-Element:
 | --- | --- | --- | --- | --- |
 | `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | URL-Endpunkt, der `{ challenges: string[] }` zurückgibt. Ist er undefiniert, kann das Widget nicht automatisch abrufen. |
 | `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | URL-Endpunkt, an den die Lösungen per POST gesendet werden. Ist er undefiniert, musst du die Verifizierung manuell mit dem Solver direkt durchführen. |
-| `auto-verify` | `autoVerify` | `boolean | string` | `false` | Startet die Verifizierung automatisch, sobald das Widget geladen ist. Setze auf `"false"` oder lasse es weg, um eine Benutzerinteraktion oder `startVerification()` zu erfordern. |
-| `show-warning` | `showWarning` | `boolean | string` | `false` | Zeigt ein rotes Warn-Banner über dem Widget an. Wird häufig verwendet, um Benutzer zu warnen, falls WebAssembly für zukünftige Fast-Solver fehlt. |
-| `warning-message` | `warningMessage` | `string` | `"Enable WASM..."` | Benutzerdefinierter Nachrichtentext für das Warn-Banner. |
-| `solve-timeout` | `solveTimeout` | `number | string` | `undefined` | Optionaler Timeout in Millisekunden für das Lösen. Wird er weggelassen, gibt es kein automatisches Timeout. |
-| `disabled` | `disabled` | `boolean | string` | `false` | Deaktiviert Benutzerinteraktion und programmatische Verifizierung, solange gesetzt. |
+| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Startet die Verifizierung automatisch, sobald das Widget geladen ist. |
+| `show-warning` | `showWarning` | `boolean \| string` | `false` | Zeigt ein Warn-Banner über dem Widget an. |
+| `warning-message` | `warningMessage` | `string` | `"Enable WASM for significantly faster solving"` | Benutzerdefinierter Nachrichtentext für das Warn-Banner. |
+| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optionaler Timeout in Millisekunden für das Lösen. |
+| `worker-mode` | `workerMode` | `'preferred' \| 'required' \| 'disabled'` | `'preferred'` | Steuert, ob das Widget einen Web Worker zum Lösen verwendet. |
+| `challenge-method` | `challengeMethod` | `'GET' \| 'POST'` | `'GET'` | Wählt aus, wie das Widget Challenges anfordert. `POST` ermöglicht das Senden eines Kalibrierungs-Payloads. |
+| `calibrate` | `calibrate` | `boolean \| string` | `false` | Sendet einen Browser-Kalibrierungs-Payload an den Challenge-Endpunkt, wenn `challenge-method="POST"` verwendet wird. |
+| `disabled` | `disabled` | `boolean \| string` | `false` | Deaktiviert Interaktion und verhindert automatische Verifizierung, solange gesetzt. |
 
 ## Antwortformat des Challenge-Endpunkts
 
@@ -42,11 +48,22 @@ Dein `challenge-endpoint` sollte einen JSON-Body zurückgeben, der die Challenge
   Das Widget akzeptiert drei Antwortformate vom `challenge-endpoint`:
 
   1. `{ challenges: string[] }` — empfohlener Vertrag
-  2. `{ tokens: string[] }` — Legacy-Kompatibilität
-  3. rohes `string[]` — Legacy-Kompatibilität
+  2. `{ tokens: string[] }` — Kompatibilitätsunterstützung
+  3. rohes `string[]` — Kompatibilitätsunterstützung
 
   Ungültige oder gemischte Token-Arrays schlagen frühzeitig mit einem klaren Fehler-Ereignis des Widgets fehl.
 </Info>
+
+## Verifizierungs-Request-Body
+
+Wenn du einen `verify-endpoint` bereitstellst, sendet das Widget einen JSON-Body mit dieser Struktur:
+
+```json
+{
+  "tokens": ["jwt-token-1", "jwt-token-2"],
+  "solutions": [{ "nonce": "123", "hash": "abc123" }]
+}
+```
 
 ## Verhalten im Disabled-Zustand
 

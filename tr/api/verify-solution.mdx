@@ -1,10 +1,10 @@
 ---
 title: "verifySolution"
 sidebarTitle: "verifySolution"
-description: "verifySolution(token, nonce, options?) JWT imzalarını, hash kanıtlarını, sona ermeyi ve yeniden oynatma korumasını doğrular. Promise<boolean> döndürür."
+description: "verifySolution(), JWT imzalarını, hash kanıtlarını, sona ermeyi, yeniden oynatma korumasını ve isteğe bağlı bağlamı doğrular. Yapılandırılmış bir sonuç nesnesi döndürür."
 ---
 
-`verifySolution()`, tarayıcının tüm challenge token'larını doğru şekilde çözüp çözmediğini kontrol etmek için verify uç noktanızda sunucu tarafında çağrılır. JWT imzasını, token sona ermesini, SHA-256 hash kanıtını kontrol eder ve (varsayılan olarak) token yeniden kullanımını engeller.
+`verifySolution()`, tarayıcının tüm challenge token'larını doğru şekilde çözüp çözmediğini kontrol etmek için verify uç noktanızda sunucu tarafında çağrılır. JWT imzasını, token sona ermesini, SHA-256 hash kanıtını, yeniden oynatma durumunu ve isteğe bağlı bağlamı doğrular.
 
 ## İçe aktarma
 
@@ -19,7 +19,7 @@ function verifySolution(
   token: ChallengeToken | ChallengeToken[],
   nonce: number | string | Array<number | string> | ChallengeSolution | ChallengeSolution[],
   options?: VerifySolutionOptions
-): Promise<boolean>
+): Promise<VerifySolutionResult>
 ```
 
 ## Parametreler
@@ -45,14 +45,25 @@ function verifySolution(
 
 | Seçenek | Tür | Varsayılan | Açıklama |
 | --- | --- | --- | --- |
-| `replayPrevention` | `'local' | 'remote' | 'disabled'` | `'local'` | Token yeniden kullanımının nasıl engelleneceğini kontrol eder |
+| `replayPrevention` | `'local' \| 'remote' \| 'disabled'` | `'local'` | Token yeniden kullanımının nasıl engelleneceğini kontrol eder |
 | `replayStore` | `ReplayStore` | `undefined` | `replayPrevention` `'remote'` olduğunda gereklidir. `consume()` yöntemini uygular. |
+| `context` | `string` | `undefined` | Challenge sırasında kullanılanla aynı bağlam değerini zorunlu kılar |
 | `debug` | `boolean` | otomatik (geliştirmede true) | Doğrulama uyarılarını konsola kaydeder |
 | `onWarning` | `(warning: VerifyWarning) => void` | `undefined` | Yapılandırılmış uyarı olayları için geri çağrı |
 
 ## Dönüş değeri
 
-`Promise<boolean>`. Yalnızca TÜM token'lar geçerli çözümlere sahipse ve yeniden oynatma kontrollerinden geçerse `true` döndürür. Herhangi bir başarısızlık durumunda hata fırlatmadan `false` döndürür.
+`Promise<VerifySolutionResult>`. Fonksiyon şu iki yapıyı döndürür:
+
+```ts
+{ valid: true }
+```
+
+veya
+
+```ts
+{ valid: false, reason, message }
+```
 
 ## Örnekler
 
@@ -60,15 +71,20 @@ Temel kullanım:
 
 ```ts
 const { tokens, solutions } = req.body;
-const valid = await verifySolution(tokens, solutions);
+const result = await verifySolution(tokens, solutions);
+
+if (!result.valid) {
+  return res.status(400).json({ success: false, error: result.reason });
+}
 ```
 
 Yapılandırılmış uyarı telemetrisi ile:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
+  context: 'signup',
   onWarning: (warning) => {
-    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'replay-detected' | 'configuration-error'
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'context-mismatch' | 'replay-detected' | 'configuration-error'
     console.log('captcha warning', warning.reason, warning.message);
   },
 });
@@ -77,11 +93,11 @@ const valid = await verifySolution(tokens, solutions, {
 Uzak yeniden oynatma deposu ile:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: {
     consume: async (jti, expiresAt) => {
-      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EX)
+      // Atomic set-if-not-exists with TTL (e.g. Redis SET NX EXAT)
       return await redis.set(jti, '1', 'NX', 'EXAT', expiresAt) !== null;
     },
   },
@@ -95,5 +111,6 @@ const valid = await verifySolution(tokens, solutions, {
 | `invalid-token` | JWT imzası geçersiz veya bozuk |
 | `expired-token` | Challenge TTL'si geçmiş |
 | `invalid-solution` | Nonce geçerli bir hash üretmiyor |
+| `context-mismatch` | Sağlanan bağlam, tokenin bağlamı ile eşleşmiyor |
 | `replay-detected` | Token zaten tüketilmiş |
 | `configuration-error` | `replayPrevention` `'remote'` ancak `replayStore` sağlanmamış |

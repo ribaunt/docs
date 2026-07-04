@@ -16,11 +16,11 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
   </Card>
 
   <Card title="Server Setup" icon="server" href="/server/express">
-    Full Express server example with challenge and verify endpoints, replay protection, and TypeScript types.
+    Full Express server example with challenge and verify endpoints, replay protection, context binding, and TypeScript types.
   </Card>
 
   <Card title="API Reference" icon="code" href="/api/create-challenge">
-    Complete reference for `createChallenge`, `verifySolution`, `solveChallenge`, and all configuration options.
+    Complete reference for `createChallenge`, `verifySolution`, `solveChallenge`, adaptive workload selection, and widget configuration.
   </Card>
 </CardGroup>
 
@@ -46,16 +46,20 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
 
     ```ts
     import { createChallenge, verifySolution } from 'ribaunt';
-    
+
     app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge(5, 4, 120);
+      const challenges = createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 120 });
       res.json({ challenges });
     });
-    
+
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
-      const valid = await verifySolution(tokens, solutions);
-      if (!valid) return res.status(400).json({ success: false });
+      const result = await verifySolution(tokens, solutions);
+
+      if (!result.valid) {
+        return res.status(400).json({ success: false, error: result.reason, message: result.message });
+      }
+
       return res.json({ success: true });
     });
     ```
@@ -65,17 +69,17 @@ Ribaunt is a stateless proof-of-work CAPTCHA library for Node.js and modern brow
 
     ```html
     <script type="module" src="/node_modules/ribaunt/dist/widget-browser.js"></script>
-    
+
     <ribaunt-widget
       challenge-endpoint="/api/captcha/challenge"
       verify-endpoint="/api/captcha/verify"
       auto-verify="true"
     ></ribaunt-widget>
-    
+
     <script>
       document.querySelector('ribaunt-widget')
-        .addEventListener('verify', (e) => {
-          console.log('Verified!', e.detail.solutions);
+        .addEventListener('verify', (event) => {
+          console.log('Verified!', event.detail.solutions);
         });
     </script>
     ```

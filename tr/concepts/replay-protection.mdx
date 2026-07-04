@@ -22,7 +22,7 @@ Yerel mod yapılandırma gerektirmez. `verifySolution()` işlevini `replayPreven
 
 ```ts
 // Default behavior — local replay protection is active
-const valid = await verifySolution(tokens, solutions);
+const result = await verifySolution(tokens, solutions);
 ```
 
 Bu, tek bir uzun süre çalışan sürecin tüm istekleri ele aldığı çoğu geleneksel Node.js dağıtımı için doğru seçimdir. Süresi dolmuş token ID'leri, yeni doğrulamalar gerçekleştikçe otomatik olarak temizlenir, böylece bellek kullanımı sınırlı kalır.
@@ -38,7 +38,7 @@ Uygulamanız birden çok Node.js örneği üzerinde çalışıyorsa, sunucusuz i
 `remote` modu ile, `ReplayStore` arayüzünü uygulayan bir `replayStore` nesnesi sağlarsınız. Ribaunt, doğrulanan her token için `replayStore.consume(jti, expiresAt)` çağrısı yapar. Uygulamanız atomik "kullanıldı olarak işaretle" işleminden sorumludur — Redis veya Valkey ile standart desen `SET NX EX`'tir (yoksa ayarla, sona erme ile).
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'remote',
   replayStore: {
     consume: async (jti, expiresAt) => {
@@ -65,7 +65,7 @@ const valid = await verifySolution(tokens, solutions, {
 Daha önce `verifySolution()` işlevinin tekrar oynatma kontrolleri olmadan davrandığı eski davranışa güveniyorsanız, geçiş yaparken bu davranışı açıkça geri yükleyebilirsiniz:
 
 ```ts
-const valid = await verifySolution(tokens, solutions, {
+const result = await verifySolution(tokens, solutions, {
   replayPrevention: 'disabled',
 });
 ```

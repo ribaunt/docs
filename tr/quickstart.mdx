@@ -48,20 +48,22 @@ Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonunu kurma sürecinde size y
     const app = express();
     app.use(express.json());
     
-    // Issues signed JWT challenges to the browser widget
     app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge(5, 4, 120);
-      // createChallenge(difficulty, amount, ttlSeconds)
+      const challenges = createChallenge({
+        difficulty: 5,
+        amount: 4,
+        ttlSeconds: 120,
+        context: 'signup',
+      });
       res.json({ challenges });
     });
     
-    // Verifies the nonces submitted by the browser widget
     app.post('/api/captcha/verify', async (req, res) => {
       const { tokens, solutions } = req.body;
-      const valid = await verifySolution(tokens, solutions);
+      const result = await verifySolution(tokens, solutions, { context: 'signup' });
     
-      if (!valid) {
-        return res.status(400).json({ success: false, error: 'Invalid CAPTCHA solution' });
+      if (!result.valid) {
+        return res.status(400).json({ success: false, error: result.reason, message: result.message });
       }
     
       return res.json({ success: true });
@@ -70,15 +72,9 @@ Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonunu kurma sürecinde size y
     app.listen(3000);
     ```
 
-    `createChallenge` üç parametre alır:
+    `createChallenge()` hem konumsal argümanları hem de bir seçenekler nesnesini kabul eder. Seçenekler nesnesi `difficulty`, `amount`, `ttlSeconds`, `context` ve uyarlamalı `workload` yapılandırmasını destekler.
 
-    | Parametre | Varsayılan | Açıklama |
-    | --- | --- | --- |
-    | `difficulty` | `5` | SHA-256 hash'inde gerekli olan baştaki sıfır sayısı. Daha yüksek değerler çözüm süresini artırır. |
-    | `amount` | `4` | Oluşturulacak challenge token sayısı. |
-    | `ttlSeconds` | `30` | Challenge tokenin saniye cinsinden ömrü. |
-
-    `verifySolution` bir `Promise<boolean>` döndürür. JWT imzasını doğrular, sona erme tarihini kontrol eder, nonce'un gerekli baştaki sıfırlarla bir hash ürettiğini onaylar ve süreç yerel deposunu kullanarak varsayılan olarak tekrar oynatmayı engeller.
+    `verifySolution()` artık bir boolean yerine yapılandırılmış bir sonuç nesnesi döndürür. `result.valid` değerini kontrol edin ve doğrulama başarısızsa `result.reason` veya `result.message` kullanın.
   </Step>
   <Step title="Widget'ı ön yüzünüze ekleyin">
     Ribaunt web bileşeni betiğini dahil edin ve `<ribaunt-widget>` öğesini CAPTCHA koruması istediğiniz yere yerleştirin. Widget sunucunuzdan bir challenge çeker, arka planda çözer ve ardından `auto-verify="true"` ayarlandığında verify uç noktanızı otomatik olarak çağırır.
@@ -90,6 +86,7 @@ Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonunu kurma sürecinde size y
       challenge-endpoint="/api/captcha/challenge"
       verify-endpoint="/api/captcha/verify"
       auto-verify="true"
+      solve-timeout="15000"
     ></ribaunt-widget>
     
     <script>
@@ -106,14 +103,14 @@ Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonunu kurma sürecinde size y
 </Steps>
 
 <Note>
-  Widget, challenge çözüldüğünde bir `verify` olayı yayar. Bunu gönder düğmenizi etkinleştirmek veya form gönderimine devam etmek için kullanın. Doğrulama başarısız olursa, kullanıcıya geri bildirim sunma fırsatı veren karşılık gelen bir `error` olayı tetiklenir.
+  Widget, challenge çözüldüğünde bir `verify` olayı yayar. Doğrulama başarısız olursa bir `error` olayı ve `fetching`, `solving`, `verifying` ve `done` gibi ara durumları bildiren bir `state-change` olayı tetiklenir.
 </Note>
 
 ## Sonraki adımlar
 
 <CardGroup cols={2}>
   <Card title="Widget yapılandırması" icon="sliders" href="/widget/configuration">
-    Tüm widget niteliklerini keşfedin — zaman aşımları, tema, uyarı bantları ve `disabled` durumu.
+    Tüm widget niteliklerini keşfedin — zaman aşımları, worker modu, challenge yöntemi, kalibrasyon, tema ve `disabled` durumu.
   </Card>
 
   <Card title="React entegrasyonu" icon="react" href="/integrations/react">
@@ -121,6 +118,6 @@ Bu kılavuz, eksiksiz bir Ribaunt CAPTCHA entegrasyonunu kurma sürecinde size y
   </Card>
 
   <Card title="Express sunucu örneği" icon="server" href="/server/express">
-    Tekrar oynatma koruması ve yapılandırılmış uyarı geri çağrılarıyla üretime hazır bir Express sunucu kurulumu.
+    Tekrar oynatma koruması, yapılandırılmış uyarı geri çağrıları ve bağlamsal doğrulama ile üretime hazır bir Express sunucu kurulumu.
   </Card>
 </CardGroup>
