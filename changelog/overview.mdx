@@ -1,0 +1,38 @@
+---
+title: "Changelog"
+description: "New features, updates, and fixes to Ribaunt."
+mode: "center"
+---
+
+<Update label="July 10, 2026">
+
+## New
+
+**React and Vue integrations**
+
+The widget now ships with first-party wrappers for [React](/integrations/react), [Next.js](/integrations/nextjs), and [Vue](/integrations/vue). Drop the component into a form, pass a callback, and receive a solved token — no manual DOM wiring required.
+
+**Themeable widget**
+
+Style the widget with CSS custom properties to match your design system without reaching into shadow DOM internals. See [Theming](/widget/theming) for the full list of variables.
+
+## Improvements
+
+**Configurable difficulty per endpoint**
+
+Tune `difficulty`, `amount`, and `ttlSeconds` when creating a challenge to balance security and user friction on a route-by-route basis. See [`createChallenge`](/api/create-challenge).
+
+**Pluggable replay protection**
+
+Local in-process replay protection is on by default. For serverless or multi-instance deployments, plug in a Redis or Valkey store. See [Replay protection](/concepts/replay-protection).
+
+**Widget events**
+
+The widget now emits `solved`, `error`, and `expired` events so you can drive UI state directly from the challenge lifecycle. See [Widget events](/widget/events).
+
+## Fixes
+
+- Improved error messages when `RIBAUNT_SECRET` is missing or malformed.
+- Type declarations are bundled in the package — no separate `@types` install needed.
+
+</Update>
