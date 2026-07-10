@@ -9,7 +9,7 @@ description: "createChallenge() issues signed JWT challenge tokens for Ribaunt p
 ## Import
 
 ```ts
-import { createChallenge, selectWorkload } from 'ribaunt';
+import { createChallenge, selectWorkload, calibrateNode, calibrateClient } from 'ribaunt';
 ```
 
 ## Signature
@@ -24,6 +24,10 @@ function createChallenge(
 function createChallenge(options: ChallengeOptions): ChallengeToken[]
 ```
 
+<Note>
+  `difficulty` accepts either a positive integer or the string `"auto"`. In `"auto"` mode, Ribaunt picks a `difficulty` and `amount` at runtime using `selectWorkload()` based on an optional client `calibration`, a server-side `riskScore`, `targetDurationMs`, and the `min`/`max` bounds you configure. Calibration is treated as untrusted — a fast benchmark can only _raise_ work up to your maximums, never lower the server-owned baseline.
+</Note>
+
 ## Parameters
 
 You can call `createChallenge()` in either of two styles:
@@ -31,8 +35,8 @@ You can call `createChallenge()` in either of two styles:
 - positional arguments: `createChallenge(difficulty, amount, ttlSeconds)`
 - an options object: `createChallenge({ difficulty, amount, ttlSeconds, context, workload })`
 
-<ParamField path="difficulty" default="5" type="number">
-  Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang.
+<ParamField path="difficulty" default="5" type='number | "auto"'>
+  Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang. Pass `"auto"` to have Ribaunt select difficulty and amount adaptively — see [Adaptive workload](#adaptive-workload) below.
 </ParamField>
 
 <ParamField path="amount" default="4" type="number">
@@ -49,6 +53,38 @@ You can call `createChallenge()` in either of two styles:
 
 <ParamField path="workload" type="Pick<Workload, 'difficulty' | 'amount'>">
   Optional shorthand for setting the challenge difficulty and amount together. Use this when you want to keep the challenge configuration in a single object.
+</ParamField>
+
+### Auto-hardness options
+
+These fields are only used when `difficulty` is `"auto"`.
+
+<ParamField path="targetDurationMs" default="750" type="number">
+  Desired browser solve time in milliseconds. The selector aims for this duration when it has calibration data.
+</ParamField>
+
+<ParamField path="riskScore" default="50" type="number">
+  Server-side risk appetite from 0–100. Higher scores bias the selector toward more work within your configured bounds, independent of the client calibration.
+</ParamField>
+
+<ParamField path="calibration" type="ClientCalibration">
+  Untrusted client benchmark, typically forwarded from the widget when `challenge-method="POST"` and `calibrate="true"` are set. Used as a raise-only signal: fast calibration can increase work up to your maximum bounds, a slow or fake one cannot reduce it below the server baseline.
+</ParamField>
+
+<ParamField path="minDifficulty" default="3" type="number">
+  Lower bound for `difficulty` when using `"auto"`.
+</ParamField>
+
+<ParamField path="maxDifficulty" default="6" type="number">
+  Upper bound for `difficulty` when using `"auto"`.
+</ParamField>
+
+<ParamField path="minAmount" default="1" type="number">
+  Lower bound for `amount` when using `"auto"`.
+</ParamField>
+
+<ParamField path="maxAmount" default="8" type="number">
+  Upper bound for `amount` when using `"auto"`.
 </ParamField>
 
 ## Return value
@@ -87,9 +123,27 @@ const adaptive = createChallenge({
 
 ## Adaptive workload
 
-Use `selectWorkload()` when you want the server to choose a difficulty and amount based on a risk score and a target solve duration.
+Two paths are supported for adaptive difficulty:
+
+1. Pass `difficulty: "auto"` directly to `createChallenge()` and let it call the selector internally.
+2. Call `selectWorkload()` yourself and pass the result via `workload`.
+
+Both use the same engine, so the results match for equivalent inputs.
 
 ```ts
+// Option 1: let createChallenge pick the workload
+const challenges = createChallenge({
+  difficulty: 'auto',
+  calibration: body.calibration,
+  targetDurationMs: 750,
+  minDifficulty: 3,
+  maxDifficulty: 6,
+  minAmount: 1,
+  maxAmount: 8,
+  ttlSeconds: 60,
+});
+
+// Option 2: pre-compute the workload
 const workload = selectWorkload({
   riskScore: 70,
   targetDurationMs: 800,
@@ -98,9 +152,26 @@ const workload = selectWorkload({
     durationMs: 200,
   },
 });
+
+const challenges = createChallenge({ workload, ttlSeconds: 60 });
 ```
 
 `selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, and `estimatedAttempts`.
+
+### Calibration helpers
+
+Ribaunt exposes calibration helpers for both environments so you can benchmark the runtime that will actually solve the challenge:
+
+```ts
+import { calibrateNode, calibrateClient } from 'ribaunt';       // Node.js
+import { calibrateBrowser, calibrateClient } from 'ribaunt/widget'; // browser
+```
+
+`calibrateClient` is a cross-environment alias — bundlers resolve the correct implementation via the package export map.
+
+<Warning>
+  Any `calibration` value coming from a browser request is untrusted. Ribaunt only uses it to raise work above the server-owned baseline, but you should still validate its shape before passing it through.
+</Warning>
 
 ## Validation
 

@@ -31,11 +31,31 @@ The options object accepted by `createChallenge()`.
 
 ```ts
 interface ChallengeOptions {
-  difficulty?: number;
+  difficulty?: number | 'auto';
   amount?: number;
   ttlSeconds?: number;
   context?: string;
   workload?: Pick<Workload, 'difficulty' | 'amount'>;
+
+  // Only used when difficulty === 'auto':
+  targetDurationMs?: number;   // default 750
+  riskScore?: number;          // 0–100, default 50
+  calibration?: ClientCalibration;
+  minDifficulty?: number;      // default 3
+  maxDifficulty?: number;      // default 6
+  minAmount?: number;          // default 1
+  maxAmount?: number;          // default 8
+}
+```
+
+## `ClientCalibration`
+
+Reported benchmark from the client used as a raise-only signal in `"auto"` mode.
+
+```ts
+interface ClientCalibration {
+  iterations: number;
+  durationMs: number;
 }
 ```
 
@@ -175,6 +195,22 @@ Imported from `ribaunt/widget`. Represents the current state of the CAPTCHA widg
 
 ```ts
 type WidgetState = 'initial' | 'fetching' | 'solving' | 'verifying' | 'done' | 'error';
+```
+
+## `WidgetErrorCode`
+
+Machine-readable error classification emitted on the widget's `error` event `detail.code`.
+
+```ts
+type WidgetErrorCode =
+  | 'timeout'
+  | 'aborted'
+  | 'challenge-fetch-failed'
+  | 'invalid-challenge'
+  | 'solve-failed'
+  | 'verification-failed'
+  | 'worker-unavailable'
+  | 'unknown';
 ```
 
 ## `RibauntWidgetHandle`

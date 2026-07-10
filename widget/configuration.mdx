@@ -31,14 +31,14 @@ The snippet below shows the most commonly used attributes on the HTML element:
 | --- | --- | --- | --- | --- |
 | `challenge-endpoint` | `challengeEndpoint` | `string` | `undefined` | URL endpoint that returns `{ challenges: string[] }`. If undefined, the widget cannot auto-fetch. |
 | `verify-endpoint` | `verifyEndpoint` | `string` | `undefined` | URL endpoint to POST the solutions. If undefined, you must handle verification manually using the solver directly. |
-| `auto-verify` | `autoVerify` | `boolean \| string` | `false` | Starts verification automatically once the widget loads. |
-| `show-warning` | `showWarning` | `boolean \| string` | `false` | Shows a warning banner above the widget. |
+| `auto-verify` | `autoVerify` | \`boolean | string\` | `false` | Starts verification automatically once the widget loads. |
+| `show-warning` | `showWarning` | \`boolean | string\` | `false` | Shows a warning banner above the widget. |
 | `warning-message` | `warningMessage` | `string` | `"Enable WASM for significantly faster solving"` | Custom message text for the warning banner. |
-| `solve-timeout` | `solveTimeout` | `number \| string` | `undefined` | Optional timeout in milliseconds for solving. |
-| `worker-mode` | `workerMode` | `'preferred' \| 'required' \| 'disabled'` | `'preferred'` | Controls whether the widget uses a Web Worker for solving. |
-| `challenge-method` | `challengeMethod` | `'GET' \| 'POST'` | `'GET'` | Chooses how the widget requests challenges. `POST` allows sending a calibration payload. |
-| `calibrate` | `calibrate` | `boolean \| string` | `false` | Sends a browser calibration payload to the challenge endpoint when using `challenge-method="POST"`. |
-| `disabled` | `disabled` | `boolean \| string` | `false` | Disables interaction and prevents automatic verification while set. |
+| `solve-timeout` | `solveTimeout` | \`number | string\` | `undefined` | Optional timeout in milliseconds for solving. Omit to leave solving un-timed. |
+| `worker-mode` | `workerMode` | \`'preferred' | 'required' | 'disabled'\` | `'preferred'` | Controls whether the widget uses a Web Worker for solving. |
+| `challenge-method` | `challengeMethod` | \`'GET' | 'POST'\` | `'GET'` | Chooses how the widget requests challenges. Use `POST` to send a calibration payload for `difficulty: "auto"`. |
+| `calibrate` | `calibrate` | \`boolean | string\` | `false` | Sends `{ calibration }` in the POST challenge request when `challenge-method="POST"`. |
+| `disabled` | `disabled` | \`boolean | string\` | `false` | Disables interaction and prevents automatic verification while set. |
 
 ## Challenge endpoint response format
 
@@ -53,6 +53,22 @@ Your `challenge-endpoint` should return a JSON body containing the challenge tok
 
   Invalid or mixed-type token arrays will fail fast with a clear widget error event.
 </Info>
+
+## Adaptive difficulty (calibration)
+
+For adaptive workloads, set `challenge-method="POST"` and `calibrate="true"`. The widget then benchmarks the browser and sends the result as `{ calibration }` in the POST body. Your challenge endpoint forwards the calibration to `createChallenge({ difficulty: 'auto', calibration })`, letting the server pick a `difficulty` and `amount` that fit the user's device — while never lowering the server-owned baseline.
+
+```html
+<ribaunt-widget
+  challenge-endpoint="/api/captcha/challenge"
+  verify-endpoint="/api/captcha/verify"
+  challenge-method="POST"
+  calibrate="true"
+  auto-verify="true"
+></ribaunt-widget>
+```
+
+See [createChallenge](/api/create-challenge#adaptive-workload) for the server-side options.
 
 ## Verification request body
 

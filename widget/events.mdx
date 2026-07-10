@@ -30,6 +30,19 @@ The `error` event is dispatched when the widget encounters a failure at any stag
 
 **Event type:** `CustomEvent<{ error: string; code: WidgetErrorCode; timeout: boolean; phase: 'error' }>`
 
+The `code` field is a stable, machine-readable identifier you can branch on:
+
+| Code | Meaning |
+| --- | --- |
+| `timeout` | Solving exceeded the configured `solve-timeout`. |
+| `aborted` | Solving was cancelled (e.g. widget reset). |
+| `challenge-fetch-failed` | Request to the challenge endpoint failed. |
+| `invalid-challenge` | Challenge response had an unexpected shape. |
+| `solve-failed` | Solver could not find a valid nonce. |
+| `verification-failed` | Server verify endpoint rejected the solution. |
+| `worker-unavailable` | Web Worker solver is not available. |
+| `unknown` | Unclassified error. |
+
 ```js
 widget.addEventListener('error', (event) => {
   const { error, code, timeout } = event.detail;
