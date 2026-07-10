@@ -91,6 +91,36 @@ The three methods exposed by the handle are:
   If your existing integration forced a remount by changing `key` whenever one of these props changed, you can safely remove that workaround.
 </Info>
 
+## Loading fallback
+
+Because the wrapper dynamically imports the underlying web component (to avoid SSR issues), there is a brief moment between the initial React render and when `<ribaunt-widget>` is attached to the DOM. During SSR and the first client render, the wrapper renders a placeholder in place of the widget to prevent layout shift and hydration flash.
+
+By default the placeholder is an animated shimmer skeleton sized from the widget's CSS custom properties, so it matches the final widget dimensions:
+
+- `--ribaunt-widget-height` (default `58px`)
+- `--ribaunt-widget-width` (default `230px`)
+- `--ribaunt-border-radius` (default `14px`)
+
+If you already style the widget with these variables, the skeleton picks them up automatically and no extra configuration is needed.
+
+To render your own placeholder — for example a branded spinner, a static message, or nothing at all — pass any React node via the `fallback` prop:
+
+```tsx
+import RibauntWidget from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  return (
+    <RibauntWidget
+      challengeEndpoint="/api/captcha/challenge"
+      verifyEndpoint="/api/captcha/verify"
+      fallback={<div className="my-captcha-placeholder">Loading verification…</div>}
+    />
+  );
+}
+```
+
+Pass `fallback={null}` to render nothing at all while the widget is loading. The fallback is only shown until the web component finishes importing; after that, the widget replaces it and the prop has no further effect.
+
 ## Using the raw web component
 
 For advanced cases where you want full control over DOM event listeners, you can register the web component yourself with a side-effect import and use `<ribaunt-widget>` directly in JSX. Ribaunt ships TypeScript declarations for both `HTMLElementTagNameMap` and `JSX.IntrinsicElements`, so you get type safety either way.

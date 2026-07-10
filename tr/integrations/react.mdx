@@ -91,6 +91,36 @@ Tutamaç tarafından açığa çıkarılan üç yöntem şunlardır:
   Mevcut entegrasyonunuz bu prop'lardan biri değiştiğinde `key` değiştirerek yeniden monte etmeyi zorladıysa, bu geçici çözümü güvenle kaldırabilirsiniz.
 </Info>
 
+## Yükleme fallback'i
+
+Sarmalayıcı, temel web bileşenini dinamik olarak içe aktardığından (SSR sorunlarını önlemek için), ilk React render'ı ile `<ribaunt-widget>`'ın DOM'a eklenmesi arasında kısa bir an vardır. SSR ve ilk istemci render'ı sırasında sarmalayıcı, düzen kaymasını ve hydration flash'ını önlemek için widget'ın yerinde bir yer tutucu render eder.
+
+Varsayılan olarak yer tutucu, widget'ın CSS custom property'lerinden boyutlandırılan animasyonlu bir shimmer iskeletidir ve böylece nihai widget boyutlarına uyar:
+
+- `--ribaunt-widget-height` (varsayılan `58px`)
+- `--ribaunt-widget-width` (varsayılan `230px`)
+- `--ribaunt-border-radius` (varsayılan `14px`)
+
+Widget'ı zaten bu değişkenlerle stillendiriyorsanız, iskelet bunları otomatik olarak alır ve ek yapılandırma gerekmez.
+
+Kendi yer tutucunuzu render etmek için — örneğin markalı bir spinner, statik bir mesaj veya hiçbir şey — herhangi bir React düğümünü `fallback` prop'u üzerinden iletin:
+
+```tsx
+import RibauntWidget from 'ribaunt/widget-react';
+
+export default function MyForm() {
+  return (
+    <RibauntWidget
+      challengeEndpoint="/api/captcha/challenge"
+      verifyEndpoint="/api/captcha/verify"
+      fallback={<div className="my-captcha-placeholder">Doğrulama yükleniyor…</div>}
+    />
+  );
+}
+```
+
+Widget yüklenirken hiçbir şey render etmemek için `fallback={null}` iletin. Fallback yalnızca web bileşeninin içe aktarımı tamamlanana kadar gösterilir; ondan sonra widget onun yerini alır ve prop'un başka bir etkisi olmaz.
+
 ## Ham web bileşenini kullanma
 
 DOM olay dinleyicileri üzerinde tam kontrol istediğiniz gelişmiş durumlar için, web bileşenini bir yan etki içe aktarmasıyla kendiniz kaydedebilir ve JSX'te doğrudan `<ribaunt-widget>` kullanabilirsiniz. Ribaunt hem `HTMLElementTagNameMap` hem de `JSX.IntrinsicElements` için TypeScript bildirimleri gönderir, böylece her iki şekilde de tür güvenliği elde edersiniz.
