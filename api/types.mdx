@@ -45,6 +45,10 @@ interface ChallengeOptions {
   maxDifficulty?: number;      // default 6
   minAmount?: number;          // default 1
   maxAmount?: number;          // default 8
+
+  // Extension hooks:
+  rateLimiter?: RateLimiter;
+  onEvent?: (event: RibauntEvent) => void;
 }
 ```
 
@@ -137,8 +141,64 @@ interface VerifySolutionOptions {
   context?: string;                        // optional challenge scope
   debug?: boolean;                         // default: true in development
   onWarning?: (warning: VerifyWarning) => void;
+  rateLimiter?: RateLimiter;
+  onEvent?: (event: RibauntEvent) => void;
 }
 ```
+
+## `RateLimiter`
+
+The interface you implement to plug your own rate limiter into `createChallenge()` and `verifySolution()`. Ribaunt calls `check()` with the optional `context` value from the same call. Resolve `true` to allow, `false` to reject. Rejection surfaces as a thrown [`RateLimitedError`](#ratelimitederror).
+
+```ts
+interface RateLimiter {
+  check(key?: string): Promise<boolean>;
+}
+```
+
+The `key` argument is whatever you passed as `context` to `createChallenge()` or `verifySolution()`, so you can bucket by IP, session, user ID, or route. `check()` may be async, which is why `createChallenge()` returns a `Promise`.
+
+## `RateLimitedError`
+
+Thrown by `createChallenge()` or `verifySolution()` when a supplied `rateLimiter.check()` resolves `false`. Catch this to return a 429 response.
+
+```ts
+class RateLimitedError extends Error {
+  readonly code: 'rate-limited';
+  readonly name: 'RateLimitedError';
+}
+```
+
+```ts
+import { verifySolution, RateLimitedError } from 'ribaunt';
+
+try {
+  const result = await verifySolution(tokens, solutions, { rateLimiter });
+  // ...
+} catch (error) {
+  if (error instanceof RateLimitedError) {
+    return res.status(429).json({ error: error.message });
+  }
+  throw error;
+}
+```
+
+## `RibauntEvent`
+
+Discriminated union passed to the optional `onEvent` telemetry hook on both `createChallenge()` and `verifySolution()`. Use it to feed metrics or logs without wrapping Ribaunt yourself.
+
+```ts
+type RibauntEvent =
+  | { type: 'challenge-issued'; difficulty: number; amount: number }
+  | { type: 'verify-success' }
+  | { type: 'verify-failure'; reason: VerifyFailureReason; message: string };
+```
+
+- `challenge-issued` — emitted by `createChallenge()` after tokens are signed.
+- `verify-success` — emitted by `verifySolution()` when the submission passes all checks.
+- `verify-failure` — emitted by `verifySolution()` when the submission is rejected. `reason` reuses the same [`VerifyFailureReason`](#verifyfailurereason-and-verifywarningreason) union as `VerifyWarning`, so you can share dashboards between the two hooks.
+
+Exceptions thrown from an `onEvent` callback are caught and ignored, so telemetry can never break challenge issuance or verification.
 
 ## `VerifySolutionResult`
 

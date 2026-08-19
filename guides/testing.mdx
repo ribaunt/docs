@@ -14,7 +14,7 @@ Ribaunt provides `solveChallenge()` — a synchronous, server-side solver — th
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
 // Generate a challenge (as your server would)
-const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
+const tokens = await createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 
 // Solve it (as the browser would)
 const solutions = solveChallenge(tokens);
@@ -46,7 +46,7 @@ If either guardrail is reached, `solveChallenge` returns `undefined` for that to
 Ribaunt's default `local` replay mode blocks any token from being verified more than once within the same process. You can confirm this behavior directly in your tests by submitting the same solution twice.
 
 ```ts
-const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
+const tokens = await createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 30 });
 const solutions = solveChallenge(tokens);
 
 const first = await verifySolution(tokens, solutions);

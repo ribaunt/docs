@@ -36,7 +36,7 @@ This guide covers the most common issues you may encounter when integrating Riba
 
     ```ts
     // Allow up to 5 minutes to complete the form
-    const tokens = createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 300 });
+    const tokens = await createChallenge({ difficulty: 5, amount: 4, ttlSeconds: 300 });
     ```
   </Accordion>
 
