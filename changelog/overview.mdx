@@ -4,6 +4,26 @@ description: "New features, updates, and fixes to Ribaunt."
 mode: "center"
 ---
 
+<Update label="August 19, 2026">
+
+## New
+
+**Bring-your-own rate limiting**
+
+Both [`createChallenge`](/api/create-challenge) and [`verifySolution`](/api/verify-solution) now accept a `rateLimiter` hook. Implement the [`RateLimiter`](/api/types#ratelimiter) interface to reject abusive callers by IP, session, or user before Ribaunt spends work on token signing or verification. Rejections surface as a [`RateLimitedError`](/api/types#ratelimitederror) so you can respond with a 429.
+
+**Lifecycle telemetry with `onEvent`**
+
+Pass an `onEvent` callback to `createChallenge` or `verifySolution` to receive [`RibauntEvent`](/api/types#ribauntevent) values for issuance, verification success, and verification failure (with the same `reason` codes as `VerifyFailureReason`). Feed the events into your metrics or logging pipeline without wrapping Ribaunt yourself. Exceptions thrown inside the callback are swallowed, so telemetry can never break a challenge.
+
+## Improvements
+
+**`createChallenge` is now async**
+
+`createChallenge()` returns `Promise<ChallengeToken[]>` so it can `await` optional hooks like `rateLimiter` before issuing tokens. Update every call site to `await createChallenge(...)`. The [quickstart](/quickstart), [Express](/server/express) and [Next.js](/server/nextjs) guides, and the [testing](/guides/testing) and [troubleshooting](/guides/troubleshooting) guides have been updated with the new signature.
+
+</Update>
+
 <Update label="July 10, 2026">
 
 ## New
