@@ -57,7 +57,7 @@ Returns a `ChallengeSolution` (`{ nonce: string; hash: string }`) for a single t
 ```ts
 import { createChallenge, solveChallenge, verifySolution } from 'ribaunt';
 
-const tokens = createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 60 });
+const tokens = await createChallenge({ difficulty: 3, amount: 2, ttlSeconds: 60 });
 const solutions = solveChallenge(tokens);
 
 if (solutions) {

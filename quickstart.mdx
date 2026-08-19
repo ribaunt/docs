@@ -48,8 +48,8 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
     const app = express();
     app.use(express.json());
 
-    app.get('/api/captcha/challenge', (_req, res) => {
-      const challenges = createChallenge({
+    app.get('/api/captcha/challenge', async (_req, res) => {
+      const challenges = await createChallenge({
         difficulty: 5,
         amount: 4,
         ttlSeconds: 120,
@@ -73,9 +73,9 @@ This guide walks you through building a complete Ribaunt CAPTCHA integration: tw
     app.listen(3000);
     ```
 
-    `createChallenge()` accepts either positional arguments or an options object. The options object supports `difficulty`, `amount`, `ttlSeconds`, `context`, and an adaptive `workload` configuration.
+    `createChallenge()` is asynchronous and returns `Promise<ChallengeToken[]>`, so always `await` it. It accepts either positional arguments or an options object. The options object supports `difficulty`, `amount`, `ttlSeconds`, `context`, an adaptive `workload` configuration, and the optional `rateLimiter` and `onEvent` hooks described in the [API reference](/api/create-challenge).
 
-    `verifySolution()` now returns a structured result object instead of a bare boolean. Check `result.valid` and use `result.reason` or `result.message` when verification fails.
+    `verifySolution()` returns a structured result object instead of a bare boolean. Check `result.valid` and use `result.reason` or `result.message` when verification fails.
   </Step>
   <Step title="Add the widget to your frontend">
     Include the Ribaunt web component script and place the `<ribaunt-widget>` element wherever you need CAPTCHA protection. The widget fetches a challenge from your server, solves it in the browser, and sends the solutions back to your verify endpoint when `auto-verify="true"` is set.

@@ -17,7 +17,7 @@ Every Ribaunt verification follows a three-step cycle.
     ```ts
     import { createChallenge } from 'ribaunt';
     
-    const challenges = createChallenge({
+    const challenges = await createChallenge({
       difficulty: 5,
       amount: 4,
       ttlSeconds: 60,

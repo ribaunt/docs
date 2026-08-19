@@ -19,10 +19,14 @@ function createChallenge(
   difficulty?: number,
   amount?: number,
   ttlSeconds?: number
-): ChallengeToken[]
+): Promise<ChallengeToken[]>
 
-function createChallenge(options: ChallengeOptions): ChallengeToken[]
+function createChallenge(options: ChallengeOptions): Promise<ChallengeToken[]>
 ```
+
+<Note>
+  `createChallenge()` is asynchronous and returns a `Promise<ChallengeToken[]>`. Always `await` it. The async signature exists so that optional hooks like `rateLimiter` can be awaited before a challenge is issued.
+</Note>
 
 <Note>
   `difficulty` accepts either a positive integer or the string `"auto"`. In `"auto"` mode, Ribaunt picks a `difficulty` and `amount` at runtime using `selectWorkload()` based on an optional client `calibration`, a server-side `riskScore`, `targetDurationMs`, and the `min`/`max` bounds you configure. Calibration is treated as untrusted — a fast benchmark can only _raise_ work up to your maximums, never lower the server-owned baseline.
@@ -87,22 +91,32 @@ These fields are only used when `difficulty` is `"auto"`.
   Upper bound for `amount` when using `"auto"`.
 </ParamField>
 
+### Hooks
+
+<ParamField path="rateLimiter" type="RateLimiter">
+  Optional bring-your-own rate limiter. `createChallenge()` calls `rateLimiter.check(context)` before issuing tokens. If the limiter resolves `false`, Ribaunt throws a `RateLimitedError` (`code: 'rate-limited'`) and does not issue any tokens. Use this to reject abusive callers by IP, session, or user before spending JWT signing work.
+</ParamField>
+
+<ParamField path="onEvent" type="(event: RibauntEvent) => void">
+  Optional telemetry hook. `createChallenge()` calls it with `{ type: 'challenge-issued', difficulty, amount }` after tokens are issued. Errors thrown by the callback are caught and ignored so telemetry cannot break challenge issuance. See the [Types reference](/api/types#ribauntevent) for the full event union.
+</ParamField>
+
 ## Return value
 
-Returns `ChallengeToken[]` — an array of signed JWT strings. Send this array to the browser as `{ challenges: tokens }`.
+Returns `Promise<ChallengeToken[]>` — an array of signed JWT strings. Send this array to the browser as `{ challenges: tokens }`.
 
 ## Examples
 
 ```ts
 import { createChallenge, selectWorkload } from 'ribaunt';
 
-const fast = createChallenge({
+const fast = await createChallenge({
   difficulty: 4,
   amount: 4,
   ttlSeconds: 30,
 });
 
-const moderate = createChallenge({
+const moderate = await createChallenge({
   difficulty: 5,
   amount: 4,
   ttlSeconds: 120,
@@ -115,9 +129,51 @@ const workload = selectWorkload({
   targetDurationMs: 750,
 });
 
-const adaptive = createChallenge({
+const adaptive = await createChallenge({
   workload,
   ttlSeconds: 120,
+});
+```
+
+### Rate-limited challenge issuance
+
+```ts
+import { createChallenge, RateLimitedError } from 'ribaunt';
+
+try {
+  const challenges = await createChallenge({
+    difficulty: 5,
+    amount: 4,
+    ttlSeconds: 60,
+    context: req.ip,
+    rateLimiter: {
+      check: async (key) => allowRequest(key), // your bucket / Redis check
+    },
+  });
+  res.json({ challenges });
+} catch (error) {
+  if (error instanceof RateLimitedError) {
+    return res.status(429).json({ error: error.message });
+  }
+  throw error;
+}
+```
+
+### Telemetry with `onEvent`
+
+```ts
+const challenges = await createChallenge({
+  difficulty: 5,
+  amount: 4,
+  ttlSeconds: 60,
+  onEvent: (event) => {
+    if (event.type === 'challenge-issued') {
+      metrics.increment('ribaunt.challenge_issued', {
+        difficulty: event.difficulty,
+        amount: event.amount,
+      });
+    }
+  },
 });
 ```
 
@@ -132,7 +188,7 @@ Both use the same engine, so the results match for equivalent inputs.
 
 ```ts
 // Option 1: let createChallenge pick the workload
-const challenges = createChallenge({
+const challenges = await createChallenge({
   difficulty: 'auto',
   calibration: body.calibration,
   targetDurationMs: 750,
@@ -153,7 +209,7 @@ const workload = selectWorkload({
   },
 });
 
-const challenges = createChallenge({ workload, ttlSeconds: 60 });
+const challenges = await createChallenge({ workload, ttlSeconds: 60 });
 ```
 
 `selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, and `estimatedAttempts`.

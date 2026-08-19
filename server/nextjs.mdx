@@ -35,7 +35,7 @@ Create the two route handler files shown below. Each file exports a named HTTP-m
     
     export async function GET() {
       try {
-        const challenges = createChallenge({
+        const challenges = await createChallenge({
           difficulty: 5,
           amount: 4,
           ttlSeconds: 60,
@@ -98,7 +98,7 @@ If you are using the `pages/api/` directory, create the two handler files below.
       }
     
       try {
-        const challenges = createChallenge({
+        const challenges = await createChallenge({
           difficulty: 5,
           amount: 4,
           ttlSeconds: 60,
@@ -140,6 +140,40 @@ If you are using the `pages/api/` directory, create the two handler files below.
     ```
   </Tab>
 </Tabs>
+
+## Rate limiting and telemetry hooks
+
+Both `createChallenge()` and `verifySolution()` accept two optional hooks:
+
+- `rateLimiter: { check(key?): Promise<boolean> }` — Ribaunt calls this before signing tokens or validating a solution. Return `false` to reject; Ribaunt throws a `RateLimitedError` (`code: 'rate-limited'`) that you catch and translate to a 429. The `key` argument is whatever you pass as `context`, so you can bucket by IP, session, or user.
+- `onEvent: (event) => void` — receives `{ type: 'challenge-issued' }`, `{ type: 'verify-success' }`, or `{ type: 'verify-failure', reason, message }`. Wire it to your metrics pipeline. Exceptions from the callback are swallowed and never break the request.
+
+```ts
+import { createChallenge, RateLimitedError } from 'ribaunt';
+
+export async function POST(req: Request) {
+  try {
+    const challenges = await createChallenge({
+      difficulty: 5,
+      amount: 4,
+      ttlSeconds: 60,
+      context: req.headers.get('x-forwarded-for') ?? undefined,
+      rateLimiter: { check: async (key) => allowRequest(key) },
+      onEvent: (event) => {
+        if (event.type === 'challenge-issued') {
+          metrics.increment('captcha.issued', { difficulty: event.difficulty });
+        }
+      },
+    });
+    return NextResponse.json({ challenges });
+  } catch (error) {
+    if (error instanceof RateLimitedError) {
+      return NextResponse.json({ error: error.message }, { status: 429 });
+    }
+    throw error;
+  }
+}
+```
 
 ## Serverless and edge deployments
 
