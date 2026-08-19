@@ -26,88 +26,83 @@
     }
   },
   "navigation": {
-    "languages": [
+    "tabs": [
       {
-        "language": "en",
-        "tabs": [
+        "tab": "Documentation",
+        "groups": [
           {
-            "tab": "Documentation",
-            "groups": [
-              {
-                "group": "Get Started",
-                "pages": [
-                  "introduction",
-                  "quickstart"
-                ]
-              },
-              {
-                "group": "Core Concepts",
-                "pages": [
-                  "concepts/how-it-works",
-                  "concepts/replay-protection"
-                ]
-              },
-              {
-                "group": "Server Setup",
-                "pages": [
-                  "server/express",
-                  "server/nextjs"
-                ]
-              },
-              {
-                "group": "Frontend Integration",
-                "pages": [
-                  "integrations/html",
-                  "integrations/react",
-                  "integrations/nextjs",
-                  "integrations/vue"
-                ]
-              },
-              {
-                "group": "Widget",
-                "pages": [
-                  "widget/configuration",
-                  "widget/events",
-                  "widget/theming"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "guides/testing",
-                  "guides/troubleshooting"
-                ]
-              }
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "tab": "API Reference",
-            "groups": [
-              {
-                "group": "Server API",
-                "pages": [
-                  "api/create-challenge",
-                  "api/verify-solution",
-                  "api/solve-challenge"
-                ]
-              },
-              {
-                "group": "Types",
-                "pages": [
-                  "api/types"
-                ]
-              }
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/how-it-works",
+              "concepts/replay-protection"
             ]
           },
           {
-            "tab": "Changelog",
-            "groups": [
-              {
-                "group": "Changelog",
-                "pages": [
-                  "changelog/overview"
-                ]
-              }
+            "group": "Server Setup",
+            "pages": [
+              "server/express",
+              "server/nextjs"
+            ]
+          },
+          {
+            "group": "Frontend Integration",
+            "pages": [
+              "integrations/html",
+              "integrations/react",
+              "integrations/nextjs",
+              "integrations/vue"
+            ]
+          },
+          {
+            "group": "Widget",
+            "pages": [
+              "widget/configuration",
+              "widget/events",
+              "widget/theming"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/testing",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server API",
+            "pages": [
+              "api/create-challenge",
+              "api/verify-solution",
+              "api/solve-challenge"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "groups": [
+          {
+            "group": "Changelog",
+            "pages": [
+              "changelog/overview"
             ]
           }
         ]
