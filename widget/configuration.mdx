@@ -38,6 +38,7 @@ The snippet below shows the most commonly used attributes on the HTML element:
 | `worker-mode` | `workerMode` | \`'preferred' | 'required' | 'disabled'\` | `'preferred'` | Controls whether the widget uses a Web Worker for solving. |
 | `challenge-method` | `challengeMethod` | \`'GET' | 'POST'\` | `'GET'` | Chooses how the widget requests challenges. Use `POST` to send a calibration payload for `difficulty: "auto"`. |
 | `calibrate` | `calibrate` | \`boolean | string\` | `false` | Sends `{ calibration }` in the POST challenge request when `challenge-method="POST"`. |
+| `show-progress` | `showProgress` | \`boolean | string\` | `true` | Set to `"false"` to switch to the secondary loader: a plain bars spinner with a static `Loading...` label instead of the conic progress ring and percentage counter. Progress is still reported through events. |
 | `disabled` | `disabled` | \`boolean | string\` | `false` | Disables interaction and prevents automatic verification while set. |
 
 ## Challenge endpoint response format
@@ -101,6 +102,32 @@ Use `disabled` to prevent users from re-submitting while your server processes a
   verifyEndpoint="/api/captcha/verify"
 />
 ```
+
+## Secondary loader (hide the percentage)
+
+By default, the widget shows a conic progress ring with a live percentage (for example, `Solving... 42%`). Set `show-progress="false"` to switch to a quieter loader: a 12-bar pulse spinner inside the checkbox with a static `Loading...` label during fetching, solving, and verifying.
+
+Use this mode when you want a calmer UI, or when a moving percentage is a distraction next to the rest of your form. The default loader is unchanged, so this is fully opt-in and backwards compatible.
+
+```html
+<ribaunt-widget
+  challenge-endpoint="/api/captcha/challenge"
+  verify-endpoint="/api/captcha/verify"
+  show-progress="false"
+></ribaunt-widget>
+```
+
+In React, pass the matching `showProgress` prop:
+
+```tsx
+<RibauntWidget
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+  showProgress={false}
+/>
+```
+
+The spinner bars are drawn with `currentColor`, so they inherit the same color as the `Loading...` label across light and dark themes. Progress is still tracked internally and reported in `state-change` and `verify` event details, so telemetry and analytics keep working without changes.
 
 ## Imperative methods (via ref)
 
