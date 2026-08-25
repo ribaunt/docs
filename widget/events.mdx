@@ -34,13 +34,13 @@ The `code` field is a stable, machine-readable identifier you can branch on:
 
 | Code | Meaning |
 | --- | --- |
-| `timeout` | Solving exceeded the configured `solve-timeout`. |
+| `timeout` | The attempt exceeded the configured `solve-timeout`. Covers fetching, solving, and verifying. |
 | `aborted` | Solving was cancelled (e.g. widget reset). |
 | `challenge-fetch-failed` | Request to the challenge endpoint failed. |
 | `invalid-challenge` | Challenge response had an unexpected shape. |
 | `solve-failed` | Solver could not find a valid nonce. |
 | `verification-failed` | Server verify endpoint rejected the solution. |
-| `worker-unavailable` | Web Worker solver is not available. |
+| `worker-unavailable` | Web Worker solver is not available and `worker-mode="required"` is set. |
 | `unknown` | Unclassified error. |
 
 ```js
@@ -57,7 +57,7 @@ widget.addEventListener('error', (event) => {
 **React equivalent:** `onError={(detail) => ...}`
 
 <Note>
-  The `timeout` field is only present in the event detail when `solve-timeout` is configured and the solving duration exceeds that limit. When present it is always `true`.
+  The `timeout` field is always present in the event detail. It is `true` only when `solve-timeout` is configured and the attempt exceeded that limit; for every other error it is `false`.
 </Note>
 
 ## `state-change`

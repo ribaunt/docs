@@ -56,6 +56,10 @@ The `expiresAt` value is a Unix timestamp in seconds — pass it directly as the
   Use the `expiresAt` argument to set the TTL on your Redis/Valkey key. This keeps your store clean without any manual housekeeping.
 </Tip>
 
+### Store outages fail closed
+
+If your `consume()` implementation throws (for example, Redis is unreachable), `verifySolution()` rejects the submission with `reason: 'replay-store-unavailable'`. The outage is reported under its own reason rather than as `invalid-token`, so you can alert on store health separately from genuinely bad submissions. Verification never silently skips the replay check.
+
 ## Disabling replay protection
 
 <Warning>

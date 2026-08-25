@@ -145,9 +145,8 @@ try {
     difficulty: 5,
     amount: 4,
     ttlSeconds: 60,
-    context: req.ip,
     rateLimiter: {
-      check: async (key) => allowRequest(key), // your bucket / Redis check
+      check: async () => allowRequest(req.ip), // your bucket / Redis check
     },
   });
   res.json({ challenges });
@@ -158,6 +157,10 @@ try {
   throw error;
 }
 ```
+
+<Warning>
+  Key the limiter on the client IP by closing over the request, as shown above. Do not pass `context: req.ip` for rate limiting. `context` cryptographically binds every token to that value, so `verifySolution()` must receive the exact same `context` or verification fails with `context-mismatch`. Reserve `context` for binding a challenge to a specific action, such as one signup attempt.
+</Warning>
 
 ### Telemetry with `onEvent`
 
