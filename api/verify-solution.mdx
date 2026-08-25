@@ -153,5 +153,5 @@ const result = await verifySolution(tokens, solutions, {
 | `invalid-solution` | The nonce does not produce a valid hash |
 | `context-mismatch` | The supplied context does not match the token's bound context |
 | `replay-detected` | Token was already consumed |
-| `replay-store-unavailable` | The replay store threw during consumption (for example, Redis is unreachable). Verification fails closed |
+| `replay-store-unavailable` | The replay store threw during consumption (for example, Redis is unreachable). Verification fails closed. |
 | `configuration-error` | `replayPrevention` is `'remote'` but no `replayStore` was provided |
