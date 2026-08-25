@@ -4,6 +4,42 @@ description: "New features, updates, and fixes to Ribaunt."
 mode: "center"
 ---
 
+<Update label="v0.2.3">
+
+## New
+
+**Distinct failure reason for replay-store outages**
+
+[`verifySolution`](/api/verify-solution) now reports `replay-store-unavailable` when the replay store cannot be reached, instead of masking outages as `invalid-token`. You can distinguish infrastructure problems from bad tokens and alert on them separately. See [`VerifyFailureReason`](/api/types#verifyfailurereason-and-verifywarningreason).
+
+**Machine-readable widget error codes**
+
+The widget's `error` event now includes a [`WidgetErrorCode`](/api/types#widgeterrorcode), so you can branch on the failure cause programmatically instead of parsing error messages. See [Widget events](/widget/events#error).
+
+**Widget types exported**
+
+The widget entry points now export `RibauntWidgetElement`, `WidgetState`, and related types, giving you fully typed refs and event handlers in [React](/integrations/react) and [Vue](/integrations/vue).
+
+## Improvements
+
+**Faster, smoother solving**
+
+The solver now yields between batches without the browser's 4ms timer clamp, so solves finish faster while the page stays responsive. Importing the widget bundle in Node scripts no longer keeps the process alive after your code finishes.
+
+**Better React prop handling**
+
+The React wrapper live-syncs standard HTML props (such as `class` and `disabled`) across re-renders, including prop removal, and binds handlers like `onClick` and `onKeyDown` as native listeners. See [React integration](/integrations/react).
+
+**Snappier keyboard activation**
+
+The widget checkbox responds on key press instead of key release, and warns once if it receives an unrecognized `worker-mode` value. See [Widget configuration](/widget/configuration).
+
+## Fixes
+
+- `showProgress={false}` on the React component now correctly switches to the bars loader. Omitting the prop restores the default progress ring. See [Secondary loader](/widget/configuration#secondary-loader-hide-the-percentage).
+
+</Update>
+
 <Update label="August 19, 2026">
 
 ## New
