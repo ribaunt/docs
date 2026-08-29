@@ -93,7 +93,9 @@ The `reason` field on the warning object can be one of the following values:
 | `invalid-token` | The JWT is malformed, tampered with, or uses an unknown secret |
 | `expired-token` | The challenge's TTL has elapsed before the solution was submitted |
 | `invalid-solution` | The submitted nonce does not produce a hash with the required leading zeros |
+| `context-mismatch` | The `context` option does not match the context the challenge was created with |
 | `replay-detected` | The same token JTI has already been consumed by the replay store |
+| `replay-store-unavailable` | The replay store threw during consumption (for example, Redis is unreachable) |
 | `configuration-error` | A required option (e.g. `replayStore`) is missing or misconfigured |
 
 <Warning>

@@ -34,8 +34,8 @@ The snippet below shows the most commonly used attributes on the HTML element:
 | `auto-verify` | `autoVerify` | \`boolean | string\` | `false` | Starts verification automatically once the widget loads. |
 | `show-warning` | `showWarning` | \`boolean | string\` | `false` | Shows a warning banner above the widget. |
 | `warning-message` | `warningMessage` | `string` | `"Enable WASM for significantly faster solving"` | Custom message text for the warning banner. |
-| `solve-timeout` | `solveTimeout` | \`number | string\` | `undefined` | Optional timeout in milliseconds for solving. Omit to leave solving un-timed. |
-| `worker-mode` | `workerMode` | \`'preferred' | 'required' | 'disabled'\` | `'preferred'` | Controls whether the widget uses a Web Worker for solving. |
+| `solve-timeout` | `solveTimeout` | \`number | string\` | `undefined` | Optional timeout in milliseconds for the whole verification attempt: fetching, solving, and verifying. Omit to leave the attempt un-timed. |
+| `worker-mode` | `workerMode` | \`'preferred' | 'required' | 'disabled'\` | `'preferred'` | Controls Web Worker solving. `preferred` falls back to main-thread solving when workers are unavailable; `required` fails with the `worker-unavailable` error code; `disabled` always solves on the main thread. Unknown values fall back to `preferred` with a console warning. |
 | `challenge-method` | `challengeMethod` | \`'GET' | 'POST'\` | `'GET'` | Chooses how the widget requests challenges. Use `POST` to send a calibration payload for `difficulty: "auto"`. |
 | `calibrate` | `calibrate` | \`boolean | string\` | `false` | Sends `{ calibration }` in the POST challenge request when `challenge-method="POST"`. |
 | `show-progress` | `showProgress` | \`boolean | string\` | `true` | Set to `"false"` to switch to the secondary loader: a plain bars spinner with a static `Loading...` label instead of the conic progress ring and percentage counter. Progress is still reported through events. |
@@ -117,7 +117,7 @@ Use this mode when you want a calmer UI, or when a moving percentage is a distra
 ></ribaunt-widget>
 ```
 
-In React, pass the matching `showProgress` prop:
+In React, pass the matching `showProgress` prop. The wrapper forwards `false` (or `"false"`) through to the element verbatim, so the bars loader works the same from React. Omit the prop entirely to keep the default progress ring:
 
 ```tsx
 <RibauntWidget

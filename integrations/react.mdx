@@ -88,10 +88,14 @@ The three methods exposed by the handle are:
   - `showWarning`
   - `warningMessage`
   - `solveTimeout`
+  - `showProgress`
+  - `workerMode`
   - `disabled`
 
   If your existing integration forced a remount by changing `key` whenever one of these props changed, you can safely remove that workaround.
 </Info>
+
+The wrapper also binds standard handler props such as `onClick` and `onKeyDown` as native event listeners, and syncs plain HTML props like `title` and `data-*` attributes across renders. Removing one of these props from your JSX removes the corresponding attribute from the element.
 
 ## Loading fallback
 

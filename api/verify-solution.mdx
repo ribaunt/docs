@@ -86,7 +86,8 @@ With structured warning telemetry:
 const result = await verifySolution(tokens, solutions, {
   context: 'signup',
   onWarning: (warning) => {
-    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'context-mismatch' | 'replay-detected' | 'configuration-error'
+    // warning.reason: 'invalid-token' | 'expired-token' | 'invalid-solution' | 'context-mismatch'
+    //                 | 'replay-detected' | 'replay-store-unavailable' | 'configuration-error'
     console.log('captcha warning', warning.reason, warning.message);
   },
 });
@@ -99,9 +100,8 @@ import { verifySolution, RateLimitedError } from 'ribaunt';
 
 try {
   const result = await verifySolution(tokens, solutions, {
-    context: req.ip,
     rateLimiter: {
-      check: async (key) => allowRequest(key),
+      check: async () => allowRequest(req.ip),
     },
     onEvent: (event) => {
       if (event.type === 'verify-success') metrics.increment('captcha.pass');
@@ -126,6 +126,10 @@ try {
   `rateLimiter` runs before token validation, so it protects the verify endpoint even when callers submit malformed input. `onEvent` fires only after verification completes; if `rateLimiter` rejects a request, no event is emitted.
 </Note>
 
+<Warning>
+  Do not pass `context: req.ip` just to key the rate limiter. Close over the request instead, as shown above. When you pass `context`, the tokens must have been created with the identical `context` value or verification fails with `context-mismatch`.
+</Warning>
+
 With a remote replay store:
 
 ```ts
@@ -149,4 +153,5 @@ const result = await verifySolution(tokens, solutions, {
 | `invalid-solution` | The nonce does not produce a valid hash |
 | `context-mismatch` | The supplied context does not match the token's bound context |
 | `replay-detected` | Token was already consumed |
+| `replay-store-unavailable` | The replay store threw during consumption (for example, Redis is unreachable). Verification fails closed. |
 | `configuration-error` | `replayPrevention` is `'remote'` but no `replayStore` was provided |

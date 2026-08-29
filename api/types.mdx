@@ -156,7 +156,7 @@ interface RateLimiter {
 }
 ```
 
-The `key` argument is whatever you passed as `context` to `createChallenge()` or `verifySolution()`, so you can bucket by IP, session, user ID, or route. `check()` may be async, which is why `createChallenge()` returns a `Promise`.
+The `key` argument is whatever you passed as `context` to `createChallenge()` or `verifySolution()`. Remember that `context` also binds tokens cryptographically, so both calls must use the identical value. To bucket by request data such as the client IP, close over the request in your `check()` implementation instead of passing it as `context`. `check()` may be async, which is why `createChallenge()` returns a `Promise`.
 
 ## `RateLimitedError`
 
@@ -233,10 +233,13 @@ type VerifyFailureReason =
   | 'invalid-solution'
   | 'context-mismatch'
   | 'replay-detected'
+  | 'replay-store-unavailable'
   | 'configuration-error';
 
 type VerifyWarningReason = VerifyFailureReason;
 ```
+
+`replay-store-unavailable` is reported when your `ReplayStore` throws (for example, Redis is unreachable). Verification fails closed with this reason instead of miscategorizing the outage as `invalid-token`, so you can alert on store health separately from bad submissions.
 
 ## `SolveChallengeOptions`
 
@@ -271,6 +274,17 @@ type WidgetErrorCode =
   | 'verification-failed'
   | 'worker-unavailable'
   | 'unknown';
+```
+
+## `WidgetError`
+
+Exported from `ribaunt/widget`. The error class the widget throws internally when a verification attempt fails. Every instance carries a machine-readable `code` (a [`WidgetErrorCode`](#widgeterrorcode)), so you can classify failures without parsing human-readable messages. The same code is surfaced on the `error` event's `detail.code`.
+
+```ts
+class WidgetError extends Error {
+  readonly code: WidgetErrorCode;
+  readonly name: 'WidgetError';
+}
 ```
 
 ## `RibauntWidgetHandle`
