@@ -1,10 +1,10 @@
 ---
 title: "Events"
 sidebarTitle: "Events"
-description: "Reference for all events emitted by ribaunt-widget: verify, error, and state-change. Includes React callback prop equivalents and event detail types."
+description: "Reference for all events emitted by ribaunt-widget: verify, error, state-change, and solver-backend. Includes React callback props and detail types."
 ---
 
-The `<ribaunt-widget>` emits three DOM custom events — `verify`, `error`, and `state-change` — that you can listen to with `addEventListener` on the element. In React, use the typed callback props instead of `addEventListener`; the wrapper wires up and tears down listeners for you automatically.
+The `<ribaunt-widget>` emits four DOM custom events — `verify`, `error`, `state-change`, and `solver-backend` — that you can listen to with `addEventListener` on the element. In React, use the typed callback props instead of `addEventListener`; the wrapper wires up and tears down listeners for you automatically.
 
 ## `verify`
 
@@ -75,6 +75,22 @@ widget.addEventListener('state-change', (event) => {
 
 **React equivalent:** `onStateChange={(detail) => ...}`
 
+## `solver-backend`
+
+The `solver-backend` event is dispatched once per solve request when the worker selects its solving backend: `wasm` when the WebAssembly solver loaded, or `js` when WASM is disabled or unavailable. Use it for adoption telemetry or to confirm your [`wasm-mode`](/widget/configuration#wasm-solver) configuration takes effect. The detail never includes challenge contents, nonces, or hashes.
+
+**Event type:** `CustomEvent<{ backend: 'wasm' | 'js'; phase: 'solving' }>`
+
+```js
+widget.addEventListener('solver-backend', (event) => {
+  console.log('Solver backend:', event.detail.backend);
+});
+```
+
+The event only fires when solving runs inside a Web Worker. When `worker-mode="preferred"` falls back to main-thread solving, no `solver-backend` event is emitted.
+
+**React equivalent:** listen via `onEvent` or `addEventListener` on the element ref.
+
 ## React callback props
 
 When you use the React wrapper, you can pass all callbacks directly as props. The wrapper maintains stable event listener references across re-renders so your callbacks always receive the latest closure values:
@@ -98,7 +114,7 @@ Three additional callbacks are available in the React wrapper that have no corre
 
 - **`onReady`** — fires once after the widget mounts, with the initial widget state in the detail payload. Use this to know when the widget is ready for interaction.
 - **`onLoad`** — functionally identical to `onReady`. It is provided as an alias for backward compatibility if you were already using `onLoad` in an earlier version.
-- **`onEvent`** — a catch-all handler that fires for every event type (`'verify'`, `'error'`, `'state-change'`, and `'ready'`), along with the event's detail object. Use this if you want a single place to handle or log all widget events.
+- **`onEvent`** — a catch-all handler that fires for every event type (`'verify'`, `'error'`, `'state-change'`, `'solver-backend'`, and `'ready'`), along with the event's detail object. Use this if you want a single place to handle or log all widget events.
 
 ## Widget states
 
