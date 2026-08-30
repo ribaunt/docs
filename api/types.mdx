@@ -97,7 +97,7 @@ interface RiskSignals {
 
 ## `RiskScorer`
 
-The interface you implement to replace the default risk heuristic in `assess()`. `score()` may be async so you can call a remote model or service. It must return a finite number from 0 to 100, otherwise `assess()` rejects.
+The interface you implement to replace the default risk heuristic in `assess()`. `score()` may be async so you can call a remote model or service. It must return a finite number from 0 to 100; otherwise, `assess()` rejects.
 
 ```ts
 interface RiskScorer {
