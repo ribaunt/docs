@@ -1,7 +1,7 @@
 ---
 title: "Types"
 sidebarTitle: "Types"
-description: "Complete TypeScript type reference for Ribaunt: ChallengeToken, ChallengeSolution, ReplayStore, VerifySolutionOptions, VerifyWarning, and more."
+description: "Complete TypeScript type reference for Ribaunt: ChallengeToken, ChallengeSolution, RiskSignals, ReplayStore, VerifySolutionOptions, and more."
 ---
 
 Ribaunt ships TypeScript types for all its public APIs. Import types from `ribaunt` for use in your server-side code.
@@ -78,6 +78,73 @@ interface Workload {
   difficulty: number;
   amount: number;
   estimatedAttempts: number;
+}
+```
+
+## `RiskSignals`
+
+Caller-supplied signals passed to [`assess()`](/api/assess). All fields are optional and treated as untrusted. The index signature lets custom scorers consume application-specific keys; the default scorer ignores unknown keys.
+
+```ts
+interface RiskSignals {
+  ip?: string;
+  userAgent?: string;
+  accountAgeSeconds?: number;
+  requestVelocity?: number;
+  [key: string]: unknown;
+}
+```
+
+## `RiskScorer`
+
+The interface you implement to replace the default risk heuristic in `assess()`. `score()` may be async so you can call a remote model or service. It must return a finite number from 0 to 100; otherwise, `assess()` rejects.
+
+```ts
+interface RiskScorer {
+  score(signals: RiskSignals): number | Promise<number>;
+}
+```
+
+## `RiskThresholds` and `DEFAULT_RISK_THRESHOLDS`
+
+Decision boundaries for `assess()`. Validation requires `0 <= challenge < block <= 100`; invalid thresholds throw instead of being silently repaired. `DEFAULT_RISK_THRESHOLDS` is a frozen object exported from `ribaunt`.
+
+```ts
+interface RiskThresholds {
+  challenge: number; // risk < challenge            -> allow
+  block: number;     // challenge <= risk < block   -> challenge
+}                    // risk >= block               -> block
+
+const DEFAULT_RISK_THRESHOLDS: RiskThresholds = { challenge: 40, block: 80 };
+```
+
+## `AssessOptions` and `AssessWorkloadOptions`
+
+The options object accepted by `assess()`. `workload` bounds are only used when the resulting action is `challenge`, but they are validated on every call.
+
+```ts
+interface AssessWorkloadOptions extends WorkloadBounds {
+  targetDurationMs?: number;
+  calibration?: ClientCalibration;
+}
+
+interface AssessOptions {
+  signals: RiskSignals;
+  scorer?: RiskScorer;
+  thresholds?: RiskThresholds;
+  workload?: AssessWorkloadOptions;
+}
+```
+
+## `RiskAssessment`
+
+The result returned by `assess()`. `risk` is a bounded heuristic score, not a fraud probability. `workload` is present only when `action` is `'challenge'` and is produced by the same `selectWorkload()` engine used for adaptive difficulty.
+
+```ts
+interface RiskAssessment {
+  risk: number;                            // 0–100, finite
+  action: 'allow' | 'challenge' | 'block';
+  workload?: Workload;
 }
 ```
 

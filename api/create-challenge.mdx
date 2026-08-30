@@ -217,6 +217,10 @@ const challenges = await createChallenge({ workload, ttlSeconds: 60 });
 
 `selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, and `estimatedAttempts`.
 
+<Note>
+  To derive `riskScore` from application signals such as account age or request velocity instead of hardcoding it, use [`assess()`](/api/assess). When it recommends a challenge, it returns a ready-made `Workload` you can pass here.
+</Note>
+
 ### Calibration helpers
 
 Ribaunt exposes calibration helpers for both environments so you can benchmark the runtime that will actually solve the challenge:
