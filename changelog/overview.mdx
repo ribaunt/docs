@@ -4,6 +4,20 @@ description: "New features, updates, and fixes to Ribaunt."
 mode: "center"
 ---
 
+<Update label="August 29, 2026">
+
+## New
+
+**WebAssembly solver with automatic fallback**
+
+The widget's solver worker now includes a WebAssembly-backed SHA-256 batch solver for faster proof-of-work solving. It is enabled by default and falls back to the JavaScript solver automatically when WebAssembly is unavailable, so no changes are required. Control it with the new [`wasm-mode`](/widget/configuration#wasm-solver) attribute (`wasmMode` prop in React), which is independent from `worker-mode`.
+
+**`solver-backend` event**
+
+The widget emits a new [`solver-backend`](/widget/events#solver-backend) event reporting whether the worker solved with the `wasm` or `js` backend. Use it for telemetry or to verify your configuration. The React wrapper's `onEvent` catch-all also receives it.
+
+</Update>
+
 <Update label="v0.2.3">
 
 ## New

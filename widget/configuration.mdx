@@ -1,7 +1,7 @@
 ---
 title: "Configuration"
 sidebarTitle: "Configuration"
-description: "Complete reference for all ribaunt-widget HTML attributes and React props: endpoints, auto-verify, timeout, worker mode, challenge method, calibration, and challenge response formats."
+description: "Complete reference for all ribaunt-widget HTML attributes and React props: endpoints, auto-verify, timeout, worker mode, WASM mode, calibration, and response formats."
 ---
 
 The `<ribaunt-widget>` Web Component and its React wrapper share the same configuration surface. HTML uses kebab-case attributes; React uses camelCase props. You can use both interchangeably depending on your stack — everything described here applies to both unless noted otherwise.
@@ -19,6 +19,7 @@ The snippet below shows the most commonly used attributes on the HTML element:
   warning-message="Verification may take longer on this device."
   solve-timeout="15000"
   worker-mode="preferred"
+  wasm-mode="preferred"
   challenge-method="GET"
   calibrate="true"
   disabled="false"
@@ -36,6 +37,7 @@ The snippet below shows the most commonly used attributes on the HTML element:
 | `warning-message` | `warningMessage` | `string` | `"Enable WASM for significantly faster solving"` | Custom message text for the warning banner. |
 | `solve-timeout` | `solveTimeout` | \`number | string\` | `undefined` | Optional timeout in milliseconds for the whole verification attempt: fetching, solving, and verifying. Omit to leave the attempt un-timed. |
 | `worker-mode` | `workerMode` | \`'preferred' | 'required' | 'disabled'\` | `'preferred'` | Controls Web Worker solving. `preferred` falls back to main-thread solving when workers are unavailable; `required` fails with the `worker-unavailable` error code; `disabled` always solves on the main thread. Unknown values fall back to `preferred` with a console warning. |
+| `wasm-mode` | `wasmMode` | \`'preferred' | 'disabled'\` | `'preferred'` | Controls the WebAssembly batch solver inside the worker. `preferred` uses WASM when it loads and falls back to the JavaScript solver otherwise; `disabled` always uses the JavaScript solver. Unknown values fall back to `preferred` with a console warning. See [WASM solver](#wasm-solver). |
 | `challenge-method` | `challengeMethod` | \`'GET' | 'POST'\` | `'GET'` | Chooses how the widget requests challenges. Use `POST` to send a calibration payload for `difficulty: "auto"`. |
 | `calibrate` | `calibrate` | \`boolean | string\` | `false` | Sends `{ calibration }` in the POST challenge request when `challenge-method="POST"`. |
 | `show-progress` | `showProgress` | \`boolean | string\` | `true` | Set to `"false"` to switch to the secondary loader: a plain bars spinner with a static `Loading...` label instead of the conic progress ring and percentage counter. Progress is still reported through events. |
@@ -81,6 +83,41 @@ When you provide a `verify-endpoint`, the widget sends a JSON payload shaped lik
   "solutions": [{ "nonce": "123", "hash": "abc123" }]
 }
 ```
+
+## WASM solver
+
+The widget ships with a WebAssembly-backed SHA-256 batch solver that hashes in larger batches than the JavaScript solver, increasing solve throughput. With the default `wasm-mode="preferred"`, the solver worker attempts to load the bundled `.wasm` binary and uses it when it initializes successfully. If WebAssembly is disabled, the asset fails to load, or instantiation fails, the worker falls back to the JavaScript solver automatically. Solutions are identical either way, so no server-side changes are needed.
+
+`wasm-mode` and `worker-mode` are independent:
+
+- `worker-mode` controls whether solving runs in a Web Worker or on the main thread.
+- `wasm-mode` controls which solver backend runs inside a healthy worker.
+
+Set `wasm-mode="disabled"` to force the JavaScript solver, for example when debugging or when a strict Content Security Policy blocks WebAssembly:
+
+```html
+<ribaunt-widget
+  challenge-endpoint="/api/captcha/challenge"
+  verify-endpoint="/api/captcha/verify"
+  wasm-mode="disabled"
+></ribaunt-widget>
+```
+
+In React, pass the matching `wasmMode` prop:
+
+```tsx
+<RibauntWidget
+  challengeEndpoint="/api/captcha/challenge"
+  verifyEndpoint="/api/captcha/verify"
+  wasmMode="disabled"
+/>
+```
+
+To observe which backend the worker selected, listen for the [`solver-backend` event](/widget/events#solver-backend). The event detail reports `wasm` or `js` and never includes challenge contents.
+
+<Note>
+  Strict CSP deployments may need `wasm-unsafe-eval` in `script-src` for WebAssembly compilation, plus access to the `.wasm` asset. The binary is loaded relative to the module URL, which Vite, Next.js, and native ESM resolve automatically. If your CSP blocks it, the widget still works through the JavaScript fallback.
+</Note>
 
 ## Disabled state behavior
 
