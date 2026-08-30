@@ -85,7 +85,8 @@
             "pages": [
               "api/create-challenge",
               "api/verify-solution",
-              "api/solve-challenge"
+              "api/solve-challenge",
+              "api/assess"
             ]
           },
           {

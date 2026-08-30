@@ -1,0 +1,187 @@
+---
+title: "assess"
+sidebarTitle: "assess"
+description: "assess() scores caller-supplied risk signals and recommends allow, challenge, or block, with a ready-to-use proof-of-work workload."
+---
+
+`assess()` is imported from `ribaunt` and called server-side to turn application-provided risk signals into a recommended action: `allow`, `challenge`, or `block`. When the action is `challenge`, the result includes a `Workload` you can pass straight to `createChallenge()`.
+
+The risk engine is an optional, stateless policy layer. All signals are caller-supplied and treated as untrusted. Ribaunt does not observe IPs, fingerprint devices, or track request velocity itself. Your application decides what to send.
+
+## Import
+
+```ts
+import { assess, DEFAULT_RISK_THRESHOLDS } from 'ribaunt';
+```
+
+## Signature
+
+```ts
+function assess(options: AssessOptions): Promise<RiskAssessment>
+```
+
+<Note>
+  `assess()` is asynchronous so a custom scorer can call a remote model or service. Always `await` it.
+</Note>
+
+## Parameters
+
+<ParamField path="signals" type="RiskSignals" required>
+  Signals your application collected about the request. All fields are optional. An empty object succeeds and scores `risk: 0`. Known keys are `ip`, `userAgent`, `accountAgeSeconds`, and `requestVelocity`. Unknown keys are ignored by the default scorer but are available to custom scorers.
+</ParamField>
+
+<ParamField path="scorer" type="RiskScorer">
+  Optional custom scorer. When you provide one, the default scorer is not executed. The scorer must return a finite number from 0 to 100 or `assess()` rejects.
+</ParamField>
+
+<ParamField path="thresholds" type="RiskThresholds">
+  Optional decision boundaries. Defaults to `DEFAULT_RISK_THRESHOLDS` (`{ challenge: 40, block: 80 }`). Validation requires `0 <= challenge < block <= 100`. Invalid thresholds throw `Challenge threshold must be less than block threshold` (or a related message) rather than being silently repaired.
+</ParamField>
+
+<ParamField path="workload" type="AssessWorkloadOptions">
+  Optional bounds for the challenge workload: `minDifficulty`, `maxDifficulty`, `minAmount`, `maxAmount`, `targetDurationMs`, and `calibration`. Used only when the action is `challenge`, but validated on every call, so an invalid workload throws even when the action would be `allow` or `block`.
+</ParamField>
+
+## Return value
+
+Returns `Promise<RiskAssessment>`:
+
+```ts
+interface RiskAssessment {
+  risk: number;                              // 0–100, finite
+  action: 'allow' | 'challenge' | 'block';
+  workload?: Workload;                       // present only when action === 'challenge'
+}
+```
+
+The `risk` value is a bounded heuristic score, not a fraud probability. Actions follow the threshold semantics:
+
+- `risk < challenge` → `allow`
+- `challenge <= risk < block` → `challenge`
+- `risk >= block` → `block`
+
+## Example
+
+```ts
+import { assess, createChallenge } from 'ribaunt';
+
+const assessment = await assess({
+  signals: {
+    accountAgeSeconds: account.ageSeconds,   // from your database
+    requestVelocity: requestsPerMinute,      // from your rate counter
+    userAgent: req.headers['user-agent'],    // from your HTTP layer
+    ip: req.ip,                              // optional; ignored by the default scorer
+  },
+});
+
+switch (assessment.action) {
+  case 'allow':
+    // continue the request
+    break;
+  case 'challenge': {
+    // assessment.workload is a selectWorkload() result
+    const challenges = await createChallenge({ workload: assessment.workload });
+    return res.json({ challenges });
+  }
+  case 'block':
+    // your application decides how to reject; assess() never sends HTTP responses
+    return res.status(403).json({ error: 'blocked' });
+}
+```
+
+## Default scorer
+
+If you do not pass `scorer`, Ribaunt uses a transparent, deterministic heuristic. It runs on the CPU only, performs no I/O, and is deliberately small so you can inspect it.
+
+| Signal | Contribution | Buckets |
+| --- | --- | --- |
+| `accountAgeSeconds` | 0–30 | `<60s: 30`, `<1h: 25`, `<1d: 20`, `<7d: 15`, `<30d: 10`, `<90d: 5`, `>=90d: 0` |
+| `requestVelocity` | 0–40 | `<1: 0`, `<5: 10`, `<20: 20`, `<60: 30`, `<200: 35`, `>=200: 40` |
+| `userAgent` | 0–10 | Missing or non-string: 0, empty: 5, shorter than 10 characters: 10, otherwise 0 |
+| `ip` | 0 | Accepted for custom scorers; the default scorer does not judge IPs |
+
+The contributions are summed and clamped to 0–100. Negative, `NaN`, and `Infinity` values are ignored rather than crashing, very large values saturate instead of dominating, and unknown keys score 0.
+
+## Custom scorer
+
+Provide a `RiskScorer` to replace the default heuristic. The `score()` method may be async, so you can call a remote model without changing callers:
+
+```ts
+import { assess, type RiskScorer } from 'ribaunt';
+
+const remoteScorer: RiskScorer = {
+  async score(signals) {
+    const res = await fetch('https://risk.internal/score', {
+      method: 'POST',
+      body: JSON.stringify(signals),
+    });
+    const { risk } = await res.json();
+    return risk; // must be a finite number from 0 to 100
+  },
+};
+
+const assessment = await assess({ signals, scorer: remoteScorer });
+```
+
+Scorer failures propagate. If `score()` throws, `assess()` rejects instead of inventing a fallback score. Invalid outputs (`NaN`, `Infinity`, negative values, values above 100, non-numbers) are rejected with `Scorer must return a finite number between 0 and 100` rather than clamped, so a broken policy stays visible.
+
+## Custom thresholds
+
+```ts
+import { assess, DEFAULT_RISK_THRESHOLDS } from 'ribaunt';
+
+console.log(DEFAULT_RISK_THRESHOLDS); // { challenge: 40, block: 80 }
+
+const assessment = await assess({
+  signals,
+  thresholds: { challenge: 30, block: 70 },
+});
+```
+
+The defaults are policy defaults, not a calibrated fraud model. Tune them to your application. `DEFAULT_RISK_THRESHOLDS` is frozen, and `assess()` copies thresholds internally, so mutating the exported object does not change behavior.
+
+## Challenge workload
+
+When `action` is `challenge`, `assessment.workload` is generated by the same `selectWorkload()` engine used for [adaptive difficulty](/api/create-challenge#adaptive-workload), with the assessed `risk` as its `riskScore`. Pass your own bounds through `workload`:
+
+```ts
+const assessment = await assess({
+  signals,
+  workload: {
+    minDifficulty: 3,
+    maxDifficulty: 6,
+    minAmount: 1,
+    maxAmount: 8,
+    targetDurationMs: 750,
+    calibration: req.body.calibration, // untrusted, raise-only
+  },
+});
+```
+
+Calibration keeps its raise-only semantics: a fast client benchmark can only increase work up to your maximums, never lower the server-owned baseline. If a `riskScore` sneaks into `workload`, the assessed `risk` overrides it.
+
+## Compatibility
+
+The risk engine is additive and opt-in. Existing `riskScore` usage on `createChallenge()` is unchanged:
+
+```ts
+await createChallenge({ difficulty: 'auto', riskScore: 80 });
+```
+
+`createChallenge()` never calls `assess()` implicitly. You can also chain the two flows manually:
+
+```ts
+const assessment = await assess({ signals });
+if (assessment.action === 'challenge') {
+  const challenges = await createChallenge({ workload: assessment.workload });
+}
+```
+
+## Limitations and trust model
+
+- **Signals are caller-supplied, not verified facts.** Ribaunt does not independently observe IP, user agent, or account age. Do not treat `signals.ip` as authenticated.
+- **The score is a heuristic, not a probability.** Do not present `risk` as a probability of fraud or confidence that the user is a bot.
+- **No reputation, fingerprinting, or external feeds.** There is no IP reputation database, device fingerprint, or ML model. Custom scorers are the escape hatch for richer policy.
+- **No automatic enforcement.** `assess()` returns a recommendation. It does not block requests, send `403` responses, or ban IPs. Your application enforces the action.
+
+See the [Types reference](/api/types#risksignals) for `RiskSignals`, `RiskScorer`, `RiskThresholds`, `AssessOptions`, and `RiskAssessment`.
