@@ -5,104 +5,47 @@ mode: "center"
 ---
 
 <Update label="v0.2.4">
+  ## New
 
-## New
+  **WebAssembly solver with automatic fallback**
 
-**WebAssembly solver with automatic fallback**
+  The widget's solver worker now includes a WebAssembly-backed SHA-256 batch solver for faster proof-of-work solving. It is enabled by default and falls back to the JavaScript solver automatically when WebAssembly is unavailable, so no changes are required. Control it with the new [`wasm-mode`](/widget/configuration#wasm-solver) attribute (`wasmMode` prop in React), which is independent from `worker-mode`.
 
-The widget's solver worker now includes a WebAssembly-backed SHA-256 batch solver for faster proof-of-work solving. It is enabled by default and falls back to the JavaScript solver automatically when WebAssembly is unavailable, so no changes are required. Control it with the new [`wasm-mode`](/widget/configuration#wasm-solver) attribute (`wasmMode` prop in React), which is independent from `worker-mode`.
+  **`solver-backend` event**
 
-**`solver-backend` event**
-
-The widget emits a new [`solver-backend`](/widget/events#solver-backend) event reporting whether the worker solved with the `wasm` or `js` backend. Use it for telemetry or to verify your configuration. The React wrapper's `onEvent` catch-all also receives it.
-
+  The widget emits a new [`solver-backend`](/widget/events#solver-backend) event reporting whether the worker solved with the `wasm` or `js` backend. Use it for telemetry or to verify your configuration. The React wrapper's `onEvent` catch-all also receives it.
 </Update>
 
 <Update label="v0.2.3">
+  ## New
 
-## New
+  **Distinct failure reason for replay-store outages**
 
-**Distinct failure reason for replay-store outages**
+  [`verifySolution`](/api/verify-solution) now reports `replay-store-unavailable` when the replay store cannot be reached, instead of masking outages as `invalid-token`. You can distinguish infrastructure problems from bad tokens and alert on them separately. See [`VerifyFailureReason`](/api/types#verifyfailurereason-and-verifywarningreason).
 
-[`verifySolution`](/api/verify-solution) now reports `replay-store-unavailable` when the replay store cannot be reached, instead of masking outages as `invalid-token`. You can distinguish infrastructure problems from bad tokens and alert on them separately. See [`VerifyFailureReason`](/api/types#verifyfailurereason-and-verifywarningreason).
+  **Machine-readable widget error codes**
 
-**Machine-readable widget error codes**
+  The widget's `error` event now includes a [`WidgetErrorCode`](/api/types#widgeterrorcode), so you can branch on the failure cause programmatically instead of parsing error messages. See [Widget events](/widget/events#error).
 
-The widget's `error` event now includes a [`WidgetErrorCode`](/api/types#widgeterrorcode), so you can branch on the failure cause programmatically instead of parsing error messages. See [Widget events](/widget/events#error).
+  **Widget types exported**
 
-**Widget types exported**
+  The widget entry points now export `RibauntWidgetElement`, `WidgetState`, and related types, giving you fully typed refs and event handlers in [React](/integrations/react) and [Vue](/integrations/vue).
 
-The widget entry points now export `RibauntWidgetElement`, `WidgetState`, and related types, giving you fully typed refs and event handlers in [React](/integrations/react) and [Vue](/integrations/vue).
+  ## Improvements
 
-## Improvements
+  **Faster, smoother solving**
 
-**Faster, smoother solving**
+  The solver now yields between batches without the browser's 4ms timer clamp, so solves finish faster while the page stays responsive. Importing the widget bundle in Node scripts no longer keeps the process alive after your code finishes.
 
-The solver now yields between batches without the browser's 4ms timer clamp, so solves finish faster while the page stays responsive. Importing the widget bundle in Node scripts no longer keeps the process alive after your code finishes.
+  **Better React prop handling**
 
-**Better React prop handling**
+  The React wrapper live-syncs standard HTML props (such as `class` and `disabled`) across re-renders, including prop removal, and binds handlers like `onClick` and `onKeyDown` as native listeners. See [React integration](/integrations/react).
 
-The React wrapper live-syncs standard HTML props (such as `class` and `disabled`) across re-renders, including prop removal, and binds handlers like `onClick` and `onKeyDown` as native listeners. See [React integration](/integrations/react).
+  **Snappier keyboard activation**
 
-**Snappier keyboard activation**
+  The widget checkbox responds on key press instead of key release, and warns once if it receives an unrecognized `worker-mode` value. See [Widget configuration](/widget/configuration).
 
-The widget checkbox responds on key press instead of key release, and warns once if it receives an unrecognized `worker-mode` value. See [Widget configuration](/widget/configuration).
+  ## Fixes
 
-## Fixes
-
-- `showProgress={false}` on the React component now correctly switches to the bars loader. Omitting the prop restores the default progress ring. See [Secondary loader](/widget/configuration#secondary-loader-hide-the-percentage).
-
-</Update>
-
-<Update label="August 19, 2026">
-
-## New
-
-**Bring-your-own rate limiting**
-
-Both [`createChallenge`](/api/create-challenge) and [`verifySolution`](/api/verify-solution) now accept a `rateLimiter` hook. Implement the [`RateLimiter`](/api/types#ratelimiter) interface to reject abusive callers by IP, session, or user before Ribaunt spends work on token signing or verification. Rejections surface as a [`RateLimitedError`](/api/types#ratelimitederror) so you can respond with a 429.
-
-**Lifecycle telemetry with `onEvent`**
-
-Pass an `onEvent` callback to `createChallenge` or `verifySolution` to receive [`RibauntEvent`](/api/types#ribauntevent) values for issuance, verification success, and verification failure (with the same `reason` codes as `VerifyFailureReason`). Feed the events into your metrics or logging pipeline without wrapping Ribaunt yourself. Exceptions thrown inside the callback are swallowed, so telemetry can never break a challenge.
-
-## Improvements
-
-**`createChallenge` is now async**
-
-`createChallenge()` returns `Promise<ChallengeToken[]>` so it can `await` optional hooks like `rateLimiter` before issuing tokens. Update every call site to `await createChallenge(...)`. The [quickstart](/quickstart), [Express](/server/express) and [Next.js](/server/nextjs) guides, and the [testing](/guides/testing) and [troubleshooting](/guides/troubleshooting) guides have been updated with the new signature.
-
-</Update>
-
-<Update label="July 10, 2026">
-
-## New
-
-**React and Vue integrations**
-
-The widget now ships with first-party wrappers for [React](/integrations/react), [Next.js](/integrations/nextjs), and [Vue](/integrations/vue). Drop the component into a form, pass a callback, and receive a solved token — no manual DOM wiring required.
-
-**Themeable widget**
-
-Style the widget with CSS custom properties to match your design system without reaching into shadow DOM internals. See [Theming](/widget/theming) for the full list of variables.
-
-## Improvements
-
-**Configurable difficulty per endpoint**
-
-Tune `difficulty`, `amount`, and `ttlSeconds` when creating a challenge to balance security and user friction on a route-by-route basis. See [`createChallenge`](/api/create-challenge).
-
-**Pluggable replay protection**
-
-Local in-process replay protection is on by default. For serverless or multi-instance deployments, plug in a Redis or Valkey store. See [Replay protection](/concepts/replay-protection).
-
-**Widget events**
-
-The widget now emits `solved`, `error`, and `expired` events so you can drive UI state directly from the challenge lifecycle. See [Widget events](/widget/events).
-
-## Fixes
-
-- Improved error messages when `RIBAUNT_SECRET` is missing or malformed.
-- Type declarations are bundled in the package — no separate `@types` install needed.
-
+  - `showProgress={false}` on the React component now correctly switches to the bars loader. Omitting the prop restores the default progress ring. See [Secondary loader](/widget/configuration#secondary-loader-hide-the-percentage).
 </Update>
