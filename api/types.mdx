@@ -16,13 +16,31 @@ type ChallengeToken = string; // A signed JWT challenge token
 
 ## `ChallengeSolution`
 
-The proof-of-work solution produced by the browser solver (or by `solveChallenge()` in tests). The `nonce` is the value that, when hashed with the challenge string, produces a SHA-256 digest beginning with the required number of leading zero hex digits.
+The proof-of-work solution produced by the browser solver (or by `solveChallenge()` in tests). The `nonce` is the value that, when hashed with the challenge string, produces a digest beginning with the required number of leading zero hex digits. The hash is SHA-256 or Argon2id depending on the token's algorithm.
 
 ```ts
 interface ChallengeSolution {
   nonce: string; // The nonce that satisfies the PoW condition
-  hash: string;  // The SHA-256 hash (hex) produced by nonce
+  hash: string;  // The hash (hex) produced by nonce
 }
+```
+
+## `PowAlgorithm` and `ArgonProfile`
+
+`PowAlgorithm` selects the proof-of-work algorithm for `createChallenge()` and `selectWorkload()`. The default is `'sha256'`; `'argon2id'` is a memory-hard opt-in — see [Argon2id opt-in](/api/create-challenge#argon2id-opt-in).
+
+`ArgonProfile` abstracts the raw Argon2id parameters so you never pass memory sizes yourself. It is only valid when the algorithm is `'argon2id'`.
+
+```ts
+type PowAlgorithm = 'sha256' | 'argon2id';
+
+type ArgonProfile = 'mobile' | 'standard';
+```
+
+`HARD_MAX` is the library-enforced upper bound on Argon2id parameters. Tokens carrying parameters above these values are rejected with `invalid-token`, so a tampered token cannot force a browser to allocate unbounded memory.
+
+```ts
+const HARD_MAX = { m: 32768, t: 3, p: 1, hashLen: 32 } as const;
 ```
 
 ## `ChallengeOptions`
@@ -46,11 +64,17 @@ interface ChallengeOptions {
   minAmount?: number;          // default 1
   maxAmount?: number;          // default 8
 
+  // Algorithm selection:
+  algorithm?: PowAlgorithm;    // default 'sha256'
+  argonProfile?: ArgonProfile; // only with algorithm: 'argon2id'
+
   // Extension hooks:
   rateLimiter?: RateLimiter;
   onEvent?: (event: RibauntEvent) => void;
 }
 ```
+
+With `algorithm: 'argon2id'`, `minDifficulty` and `maxDifficulty` default to `1` and `2`, and difficulty caps at `8` instead of `64`.
 
 ## `ClientCalibration`
 
@@ -72,12 +96,16 @@ interface AdaptiveWorkloadOptions extends WorkloadBounds {
   riskScore?: number;
   targetDurationMs?: number;
   calibration?: ClientCalibration;
+  algorithm?: PowAlgorithm;    // default 'sha256'
+  argonProfile?: ArgonProfile; // only with algorithm: 'argon2id'
 }
 
 interface Workload {
   difficulty: number;
   amount: number;
   estimatedAttempts: number;
+  algorithm: PowAlgorithm;
+  argon?: { m: number; t: number; p: number; hashLen: number }; // present for 'argon2id'
 }
 ```
 
@@ -120,7 +148,7 @@ const DEFAULT_RISK_THRESHOLDS: RiskThresholds = { challenge: 40, block: 80 };
 
 ## `AssessOptions` and `AssessWorkloadOptions`
 
-The options object accepted by `assess()`. `workload` bounds are only used when the resulting action is `challenge`, but they are validated on every call.
+The options object accepted by `assess()`. `workload` bounds are only used when the resulting action is `challenge`, but they are validated on every call. `workload` also accepts `algorithm` and `argonProfile`, which thread through to the generated `Workload`.
 
 ```ts
 interface AssessWorkloadOptions extends WorkloadBounds {
@@ -256,7 +284,7 @@ Discriminated union passed to the optional `onEvent` telemetry hook on both `cre
 
 ```ts
 type RibauntEvent =
-  | { type: 'challenge-issued'; difficulty: number; amount: number }
+  | { type: 'challenge-issued'; difficulty: number; amount: number; algorithm?: PowAlgorithm }
   | { type: 'verify-success' }
   | { type: 'verify-failure'; reason: VerifyFailureReason; message: string };
 ```
@@ -310,7 +338,7 @@ type VerifyWarningReason = VerifyFailureReason;
 
 ## `SolveChallengeOptions`
 
-Optional guardrails passed to `solveChallenge()` to prevent it from running indefinitely during tests.
+Optional guardrails passed to `solveChallenge()` and `solveChallengeAsync()` to prevent them from running indefinitely during tests.
 
 ```ts
 interface SolveChallengeOptions {

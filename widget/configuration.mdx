@@ -113,7 +113,11 @@ In React, pass the matching `wasmMode` prop:
 />
 ```
 
-To observe which backend the worker selected, listen for the [`solver-backend` event](/widget/events#solver-backend). The event detail reports `wasm` or `js` and never includes challenge contents.
+To observe which backend the worker selected, listen for the [`solver-backend` event](/widget/events#solver-backend). The event detail reports `wasm`, `js`, or `argon2id` and never includes challenge contents.
+
+<Note>
+  `wasm-mode` only controls the SHA-256 solver. When your server issues [Argon2id challenges](/api/create-challenge#argon2id-opt-in), the widget detects the algorithm from the tokens, loads the Argon2id solver automatically, and reports `argon2id` as the backend. No widget configuration is needed to support Argon2id.
+</Note>
 
 <Note>
   Strict CSP deployments may need `wasm-unsafe-eval` in `script-src` for WebAssembly compilation, plus access to the `.wasm` asset. The binary is loaded relative to the module URL, which Vite, Next.js, and native ESM resolve automatically. If your CSP blocks it, the widget still works through the JavaScript fallback.

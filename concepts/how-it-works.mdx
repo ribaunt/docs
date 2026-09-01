@@ -60,6 +60,8 @@ Each challenge token is a standard signed JWT. When decoded, its payload contain
 | `expires` | A Unix timestamp (seconds) after which the token is rejected |
 | `jti` | A UUID that uniquely identifies this token, used for replay prevention |
 
+Ribaunt hashes with SHA-256 by default. If you opt in to the memory-hard [Argon2id algorithm](/api/create-challenge#argon2id-opt-in), each token additionally carries the algorithm identifier and its Argon2id parameters, and the solver and `verifySolution()` detect the algorithm per token automatically.
+
 The tokens are signed with `RIBAUNT_SECRET`, an environment variable you set on your server. Your server is the only party that can produce or validate tokens — the browser only ever sees the signed, opaque JWT.
 
 <Note>

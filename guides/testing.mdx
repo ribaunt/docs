@@ -41,6 +41,29 @@ const solution = solveChallenge(token, {
 
 If either guardrail is reached, `solveChallenge` returns `undefined` for that token. Your test should assert the return value is defined before passing it to `verifySolution`.
 
+## Testing Argon2id challenges
+
+`solveChallenge` supports SHA-256 tokens only and returns `undefined` for tokens created with `algorithm: 'argon2id'`. Use the asynchronous [`solveChallengeAsync`](/api/solve-challenge#solvechallengeasync) in tests that cover Argon2id. It accepts the same guardrail options and solves both algorithms.
+
+```ts
+import { createChallenge, solveChallengeAsync, verifySolution } from 'ribaunt';
+
+const tokens = await createChallenge({
+  algorithm: 'argon2id',
+  difficulty: 1,
+  amount: 2,
+  ttlSeconds: 30,
+});
+
+const solutions = await solveChallengeAsync(tokens);
+const result = await verifySolution(tokens, solutions);
+console.assert(result.valid === true);
+```
+
+<Tip>
+  Each Argon2id hash takes milliseconds instead of microseconds. Keep `difficulty` at `1` and amounts small so Argon2id tests stay fast.
+</Tip>
+
 ## Testing replay protection
 
 Ribaunt's default `local` replay mode blocks any token from being verified more than once within the same process. You can confirm this behavior directly in your tests by submitting the same solution twice.
