@@ -253,7 +253,7 @@ import { calibrateArgonBrowser, calibrateArgonClient } from 'ribaunt/widget'; //
 
 ## Argon2id opt-in
 
-By default Ribaunt uses SHA-256, which hashes in microseconds and keeps server-side verification cheap. Opt in to `argon2id` when you want a memory-hard proof of work: each hash allocates a fixed amount of memory, which makes large-scale solving on GPUs and ASICs far more expensive relative to a real user's browser.
+By default, Ribaunt uses SHA-256, which hashes in microseconds and keeps server-side verification cheap. Opt in to `argon2id` when you want a memory-hard proof of work: each hash allocates a fixed amount of memory, which makes large-scale solving on GPUs and ASICs far more expensive relative to a real user's browser.
 
 ```ts
 import { createChallenge, calibrateArgonNode } from 'ribaunt';
