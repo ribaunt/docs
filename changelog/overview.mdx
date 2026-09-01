@@ -4,6 +4,32 @@ description: "New features, updates, and fixes to Ribaunt."
 mode: "center"
 ---
 
+<Update label="v0.2.5">
+  ## New
+
+  **Argon2id memory-hard proof-of-work (opt-in)**
+
+  [`createChallenge`](/api/create-challenge) accepts a new `algorithm: 'argon2id'` option alongside the default `sha256`. Argon2id is memory-hard, which raises the cost of solving challenges on GPUs and custom hardware. Pick a memory preset with `argonProfile` (`'mobile'` or `'standard'`) instead of raw memory parameters, and Ribaunt enforces hard upper bounds on them. SHA-256 stays the default, so existing setups are unaffected.
+
+  **`solveChallengeAsync`**
+
+  A new async solver handles both `sha256` and `argon2id` tokens, detecting the algorithm from each token automatically. The sync [`solveChallenge`](/api/solve-challenge) remains SHA-256 only and returns `undefined` for Argon2id tokens.
+
+  **Argon2id calibration helpers**
+
+  New `calibrateArgonNode` and `calibrateArgonBrowser` functions (with a `calibrateArgonClient` alias) mirror the existing calibrators for device-aware `difficulty: "auto"` scaling with Argon2id. Use the calibrator that matches your algorithm.
+
+  ## Improvements
+
+  - [`selectWorkload`](/api/create-challenge#auto-hardness-options) and [`assess`](/api/assess) accept `algorithm` and `argonProfile`, with per-algorithm difficulty bounds and defaults.
+  - [`verifySolution`](/api/verify-solution) and the widget detect the algorithm from each token, so no extra configuration is needed on either side.
+  - The [`solver-backend`](/widget/events#solver-backend) event can now report `argon2id` in addition to `wasm` and `js`.
+
+  ## Fixes
+
+  - The widget's WebAssembly solver now validates the fetched binary before using it. Dev servers with SPA fallbacks (such as Vite) that answer the WASM request with an HTML page no longer break solving; the widget falls back to the JavaScript solver instead.
+</Update>
+
 <Update label="v0.2.4">
   ## New
 
