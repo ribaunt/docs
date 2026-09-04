@@ -64,6 +64,14 @@ pnpm add ribaunt
   Browser solving requires a secure context — use HTTPS in production or `http://localhost` during development. Loading the widget from a plain LAN address such as `http://192.168.x.x` will fail because the Web Crypto API is unavailable in non-secure contexts.
 </Note>
 
+## Use the docs with AI tools
+
+Ribaunt does not ship a Model Context Protocol (MCP) server in the `ribaunt` npm package. You can still give AI assistants direct access to this documentation:
+
+- **Docs MCP server**: this documentation site hosts an MCP server at its `/mcp` endpoint. Add that URL to any MCP-compatible client, such as Claude Code or Cursor, to search these docs from your assistant.
+- **Context7**: Ribaunt is indexed on [Context7](https://context7.com/ribaunt/ribaunt). Assistants configured with the Context7 MCP server can pull current Ribaunt documentation and code examples from there.
+- **Plain-text export**: the full documentation is available at the site's `/llms.txt` and `/llms-full.txt` endpoints for tools that ingest raw Markdown.
+
 ## Next steps
 
 <CardGroup cols={2}>
