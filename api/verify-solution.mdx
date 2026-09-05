@@ -148,7 +148,7 @@ const result = await verifySolution(tokens, solutions, {
 
 | Reason | Description |
 | --- | --- |
-| `invalid-token` | JWT signature is invalid or malformed |
+| `invalid-token` | JWT signature is invalid, the payload is malformed, or the token carries an unknown construction version (`v`) |
 | `expired-token` | Challenge TTL has passed |
 | `invalid-solution` | The nonce does not produce a valid hash |
 | `context-mismatch` | The supplied context does not match the token's bound context |

@@ -4,6 +4,22 @@ description: "New features, updates, and fixes to Ribaunt."
 mode: "center"
 ---
 
+<Update label="v0.2.6">
+  ## Improvements
+
+  **Challenge token construction version**
+
+  Every challenge token now embeds a construction version (`v: 1`) that pins how the solution is computed. [`verifySolution`](/api/verify-solution) rejects tokens with an unknown future version as `invalid-token`, and the solvers return `undefined` instead of solving under wrong assumptions. Tokens issued before this release (no `v` field) are treated as version 1 and still verify, so no action is needed.
+
+  **Argon2id profile tiers clarified**
+
+  The `'mobile'` and `'standard'` values of [`argonProfile`](/api/create-challenge#argon2id-opt-in) currently share the same conservative tuning. Pick the tier that matches your audience now; because each token embeds its own parameters and version, future retuning cannot break in-flight tokens.
+
+  ## Fixes
+
+  - **Argon2id salt entropy.** Challenge strings now carry 16 random bytes (128 bits) of entropy, and the Argon2id salt is derived from the full-entropy challenge instead of a shorter zero-padded value. Tokens issued before this fix still verify during their TTL window.
+</Update>
+
 <Update label="v0.2.5">
   ## New
 

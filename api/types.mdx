@@ -29,7 +29,7 @@ interface ChallengeSolution {
 
 `PowAlgorithm` selects the proof-of-work algorithm for `createChallenge()` and `selectWorkload()`. The default is `'sha256'`; `'argon2id'` is a memory-hard opt-in — see [Argon2id opt-in](/api/create-challenge#argon2id-opt-in).
 
-`ArgonProfile` abstracts the raw Argon2id parameters so you never pass memory sizes yourself. It is only valid when the algorithm is `'argon2id'`.
+`ArgonProfile` abstracts the raw Argon2id parameters so you never pass memory sizes yourself. It is only valid when the algorithm is `'argon2id'`. Both profiles currently resolve to the same conservative parameters (`m: 8192`, `t: 1`, `p: 1`, `hashLen: 32`). Because each token embeds its own parameters and a construction version, choosing a tier now is safe: retuning in a future release cannot break in-flight tokens.
 
 ```ts
 type PowAlgorithm = 'sha256' | 'argon2id';

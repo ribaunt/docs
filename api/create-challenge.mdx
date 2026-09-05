@@ -48,7 +48,7 @@ You can call `createChallenge()` in either of two styles:
 </ParamField>
 
 <ParamField path="argonProfile" default="mobile" type="'mobile' | 'standard'">
-  Memory-hardness profile, only valid with `algorithm: 'argon2id'`. The profile abstracts the raw Argon2id parameters (`m`, `t`, `p`) so you never pass memory sizes yourself. Passing `argonProfile` with `algorithm: 'sha256'` throws.
+  Memory-hardness profile, only valid with `algorithm: 'argon2id'`. The profile abstracts the raw Argon2id parameters (`m`, `t`, `p`) so you never pass memory sizes yourself. Both profiles currently resolve to the same conservative tuning; pick the tier that matches your audience now, and future retuning will not break in-flight tokens because each token embeds its own parameters. Passing `argonProfile` with `algorithm: 'sha256'` throws.
 </ParamField>
 
 <ParamField path="amount" default="4" type="number">
@@ -271,11 +271,15 @@ Key differences from SHA-256:
 
 - **Difficulty scale.** Each Argon2id hash takes milliseconds instead of microseconds, so difficulty caps at `8` and `"auto"` bounds default to `1`–`2` (versus `64` and `3`–`6` for SHA-256).
 - **Profiles instead of raw parameters.** `argonProfile` resolves the Argon2id memory, iteration, and parallelism parameters for you. The library enforces a hard upper bound (`HARD_MAX`, exported from `ribaunt`) on those parameters, and tokens carrying values above it are rejected as `invalid-token`.
-- **Tokens are self-describing.** Each challenge token carries its algorithm and Argon2id parameters, signed into the JWT. `verifySolution()` detects the algorithm per token, so your verify endpoint needs no changes.
+- **Tokens are self-describing.** Each challenge token carries its algorithm, its Argon2id parameters, and a construction version (`v: 1`), signed into the JWT. `verifySolution()` detects the algorithm per token, so your verify endpoint needs no changes, and future profile retuning cannot break tokens that are already in flight.
 - **Browser support is automatic.** The widget and its solver worker detect the algorithm per token and load the Argon2id solver on demand. The [`solver-backend` event](/widget/events#solver-backend) reports `argon2id` so you can confirm it in telemetry.
 - **Testing.** The synchronous [`solveChallenge()`](/api/solve-challenge) helper supports SHA-256 only. Use `solveChallengeAsync()` in tests that solve `argon2id` tokens.
 
 The adaptive engine works the same for both algorithms: `riskScore` and `calibration` remain raise-only signals within your configured bounds. [`assess()`](/api/assess) accepts `algorithm` and `argonProfile` in its `workload` options when you want the risk engine to produce Argon2id workloads.
+
+<Warning>
+  Argon2id narrows the attacker's GPU and ASIC advantage but does not eliminate it. A well-funded adversary can still solve any proof-of-work challenge, just at a higher memory cost. Treat it as one abuse-cost layer alongside rate limiting and risk signals, not as human verification or the sole gate for sensitive actions.
+</Warning>
 
 ## Validation
 
