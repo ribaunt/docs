@@ -1,15 +1,17 @@
 ---
 title: "solveChallenge"
 sidebarTitle: "solveChallenge"
-description: "solveChallenge(token, options?) solves JWT challenge tokens synchronously. Use in tests and tooling — not in production request handlers."
+description: "solveChallenge and solveChallengeAsync solve JWT challenge tokens in Node.js. Use them in tests and tooling — not in production request handlers."
 ---
 
 `solveChallenge()` runs the same proof-of-work algorithm used by the browser widget, but synchronously in Node.js. It is designed for automated testing of your challenge and verify endpoints — not for production use in request handlers.
 
+`solveChallenge()` supports SHA-256 tokens only and returns `undefined` for `argon2id` tokens. Use [`solveChallengeAsync()`](#solvechallengeasync) to solve both algorithms.
+
 ## Import
 
 ```ts
-import { solveChallenge } from 'ribaunt';
+import { solveChallenge, solveChallengeAsync } from 'ribaunt';
 ```
 
 ## Signature
@@ -50,7 +52,7 @@ function solveChallenge(
 
 ## Return value
 
-Returns a `ChallengeSolution` (`{ nonce: string; hash: string }`) for a single token input, or `ChallengeSolution[]` for an array input. Returns `undefined` if any guardrail is hit or a token is invalid. When solving an array, `undefined` is returned as soon as any single token fails — no partial results are returned.
+Returns a `ChallengeSolution` (`{ nonce: string; hash: string }`) for a single token input, or `ChallengeSolution[]` for an array input. Returns `undefined` if any guardrail is hit, a token is invalid, or a token uses `argon2id`. When solving an array, `undefined` is returned as soon as any single token fails — no partial results are returned.
 
 ## Example
 
@@ -85,4 +87,44 @@ if (!solution) {
 
 <Tip>
   Use difficulty 3–4 in tests. Difficulty 5 will noticeably slow down your test suite.
+</Tip>
+
+## solveChallengeAsync
+
+`solveChallengeAsync()` is the asynchronous variant. It reads the algorithm from each token and solves SHA-256 and `argon2id` tokens alike, so use it when your tests cover [Argon2id challenges](/api/create-challenge#argon2id-opt-in) or mixed batches. It accepts the same `SolveChallengeOptions` guardrails and returns `undefined` under the same conditions.
+
+```ts
+// Single token
+function solveChallengeAsync(
+  token: ChallengeToken,
+  options?: SolveChallengeOptions
+): Promise<ChallengeSolution | undefined>
+
+// Array of tokens
+function solveChallengeAsync(
+  token: ChallengeToken[],
+  options?: SolveChallengeOptions
+): Promise<ChallengeSolution[] | undefined>
+```
+
+```ts
+import { createChallenge, solveChallengeAsync, verifySolution } from 'ribaunt';
+
+const tokens = await createChallenge({
+  algorithm: 'argon2id',
+  difficulty: 1,
+  amount: 2,
+  ttlSeconds: 60,
+});
+
+const solutions = await solveChallengeAsync(tokens);
+
+if (solutions) {
+  const result = await verifySolution(tokens, solutions);
+  console.log('Valid:', result.valid);
+}
+```
+
+<Tip>
+  Argon2id hashes take milliseconds each, so keep test difficulty at `1` and amounts small to keep suites fast.
 </Tip>

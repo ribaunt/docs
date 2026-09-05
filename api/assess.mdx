@@ -39,7 +39,7 @@ function assess(options: AssessOptions): Promise<RiskAssessment>
 </ParamField>
 
 <ParamField path="workload" type="AssessWorkloadOptions">
-  Optional bounds for the challenge workload: `minDifficulty`, `maxDifficulty`, `minAmount`, `maxAmount`, `targetDurationMs`, and `calibration`. Used only when the action is `challenge`, but validated on every call, so an invalid workload throws even when the action would be `allow` or `block`.
+  Optional bounds for the challenge workload: `minDifficulty`, `maxDifficulty`, `minAmount`, `maxAmount`, `targetDurationMs`, `calibration`, `algorithm`, and `argonProfile`. Used only when the action is `challenge`, but validated on every call, so an invalid workload throws even when the action would be `allow` or `block`.
 </ParamField>
 
 ## Return value
@@ -159,6 +159,27 @@ const assessment = await assess({
 ```
 
 Calibration keeps its raise-only semantics: a fast client benchmark can only increase work up to your maximums, never lower the server-owned baseline. If a `riskScore` sneaks into `workload`, the assessed `risk` overrides it.
+
+To produce a memory-hard workload, pass `algorithm` and `argonProfile` through `workload`. The returned `Workload` carries the algorithm and Argon2id parameters, so you can pass it straight to `createChallenge()`:
+
+```ts
+const assessment = await assess({
+  signals,
+  workload: {
+    algorithm: 'argon2id',
+    argonProfile: 'mobile',
+  },
+});
+
+if (assessment.action === 'challenge') {
+  const challenges = await createChallenge({
+    workload: assessment.workload,
+    algorithm: 'argon2id',
+  });
+}
+```
+
+See [Argon2id opt-in](/api/create-challenge#argon2id-opt-in) for how the algorithms differ.
 
 ## Compatibility
 

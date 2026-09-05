@@ -4,7 +4,7 @@ sidebarTitle: "verifySolution"
 description: "verifySolution() validates JWT signatures, hash proofs, expiry, replay protection, and optional context binding. Returns a structured result object."
 ---
 
-`verifySolution()` is called server-side in your verify endpoint to check that the browser correctly solved all challenge tokens. It validates the JWT signature, token expiry, the SHA-256 hash proof, replay state, and optional context binding.
+`verifySolution()` is called server-side in your verify endpoint to check that the browser correctly solved all challenge tokens. It validates the JWT signature, token expiry, the hash proof, replay state, and optional context binding. Each token carries its own algorithm, so `verifySolution()` verifies SHA-256 and [Argon2id](/api/create-challenge#argon2id-opt-in) proofs automatically with no extra options.
 
 ## Import
 

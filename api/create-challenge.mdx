@@ -40,7 +40,15 @@ You can call `createChallenge()` in either of two styles:
 - an options object: `createChallenge({ difficulty, amount, ttlSeconds, context, workload })`
 
 <ParamField path="difficulty" default="5" type='number | "auto"'>
-  Number of leading zero hex digits required in the SHA-256 hash. Each increment roughly doubles solve time. Values above 6 may cause browsers to hang. Pass `"auto"` to have Ribaunt select difficulty and amount adaptively — see [Adaptive workload](#adaptive-workload) below.
+  Number of leading zero hex digits required in the hash. Each increment roughly doubles solve time. SHA-256 accepts `1`–`64` (values above 6 may cause browsers to hang); Argon2id accepts `1`–`8`. Pass `"auto"` to have Ribaunt select difficulty and amount adaptively — see [Adaptive workload](#adaptive-workload) below.
+</ParamField>
+
+<ParamField path="algorithm" default="sha256" type="'sha256' | 'argon2id'">
+  Proof-of-work algorithm. The default `sha256` hashes in microseconds and verifies cheaply. Opt in to `argon2id` for a memory-hard algorithm that raises the cost of GPU and ASIC solver farms. See [Argon2id opt-in](#argon2id-opt-in) below.
+</ParamField>
+
+<ParamField path="argonProfile" default="mobile" type="'mobile' | 'standard'">
+  Memory-hardness profile, only valid with `algorithm: 'argon2id'`. The profile abstracts the raw Argon2id parameters (`m`, `t`, `p`) so you never pass memory sizes yourself. Passing `argonProfile` with `algorithm: 'sha256'` throws.
 </ParamField>
 
 <ParamField path="amount" default="4" type="number">
@@ -76,11 +84,11 @@ These fields are only used when `difficulty` is `"auto"`.
 </ParamField>
 
 <ParamField path="minDifficulty" default="3" type="number">
-  Lower bound for `difficulty` when using `"auto"`.
+  Lower bound for `difficulty` when using `"auto"`. Defaults to `1` when `algorithm` is `'argon2id'`.
 </ParamField>
 
 <ParamField path="maxDifficulty" default="6" type="number">
-  Upper bound for `difficulty` when using `"auto"`.
+  Upper bound for `difficulty` when using `"auto"`. Defaults to `2` when `algorithm` is `'argon2id'`.
 </ParamField>
 
 <ParamField path="minAmount" default="1" type="number">
@@ -98,7 +106,7 @@ These fields are only used when `difficulty` is `"auto"`.
 </ParamField>
 
 <ParamField path="onEvent" type="(event: RibauntEvent) => void">
-  Optional telemetry hook. `createChallenge()` calls it with `{ type: 'challenge-issued', difficulty, amount }` after tokens are issued. Errors thrown by the callback are caught and ignored so telemetry cannot break challenge issuance. See the [Types reference](/api/types#ribauntevent) for the full event union.
+  Optional telemetry hook. `createChallenge()` calls it with `{ type: 'challenge-issued', difficulty, amount, algorithm }` after tokens are issued. Errors thrown by the callback are caught and ignored so telemetry cannot break challenge issuance. See the [Types reference](/api/types#ribauntevent) for the full event union.
 </ParamField>
 
 ## Return value
@@ -215,7 +223,7 @@ const workload = selectWorkload({
 const challenges = await createChallenge({ workload, ttlSeconds: 60 });
 ```
 
-`selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, and `estimatedAttempts`.
+`selectWorkload()` respects the configured bounds and returns a `Workload` object with `difficulty`, `amount`, `estimatedAttempts`, and `algorithm`. It accepts the same `algorithm` and `argonProfile` options as `createChallenge()`; for `argon2id` the result also includes the resolved `argon` parameters.
 
 <Note>
   To derive `riskScore` from application signals such as account age or request velocity instead of hardcoding it, use [`assess()`](/api/assess). When it recommends a challenge, it returns a ready-made `Workload` you can pass here.
@@ -226,21 +234,56 @@ const challenges = await createChallenge({ workload, ttlSeconds: 60 });
 Ribaunt exposes calibration helpers for both environments so you can benchmark the runtime that will actually solve the challenge:
 
 ```ts
-import { calibrateNode, calibrateClient } from 'ribaunt';       // Node.js
-import { calibrateBrowser, calibrateClient } from 'ribaunt/widget'; // browser
+import { calibrateNode, calibrateClient } from 'ribaunt';       // Node.js, SHA-256
+import { calibrateArgonNode, calibrateArgonClient } from 'ribaunt';  // Node.js, Argon2id
+
+import { calibrateBrowser, calibrateClient } from 'ribaunt/widget';       // browser, SHA-256
+import { calibrateArgonBrowser, calibrateArgonClient } from 'ribaunt/widget'; // browser, Argon2id
 ```
 
-`calibrateClient` is a cross-environment alias — bundlers resolve the correct implementation via the package export map.
+`calibrateClient` and `calibrateArgonClient` are cross-environment aliases — bundlers resolve the correct implementation via the package export map.
+
+<Warning>
+  Use the calibrator that matches your `algorithm`. A SHA-256 calibration passed to an `argon2id` workload (or vice versa) will over- or under-estimate the device and skew the selected difficulty.
+</Warning>
 
 <Warning>
   Any `calibration` value coming from a browser request is untrusted. Ribaunt only uses it to raise work above the server-owned baseline, but you should still validate its shape before passing it through.
 </Warning>
 
+## Argon2id opt-in
+
+By default, Ribaunt uses SHA-256, which hashes in microseconds and keeps server-side verification cheap. Opt in to `argon2id` when you want a memory-hard proof of work: each hash allocates a fixed amount of memory, which makes large-scale solving on GPUs and ASICs far more expensive relative to a real user's browser.
+
+```ts
+import { createChallenge, calibrateArgonNode } from 'ribaunt';
+
+const challenges = await createChallenge({
+  algorithm: 'argon2id',
+  argonProfile: 'mobile',
+  difficulty: 'auto',
+  calibration: await calibrateArgonNode(), // must match the algorithm
+  ttlSeconds: 120,
+});
+```
+
+Key differences from SHA-256:
+
+- **Difficulty scale.** Each Argon2id hash takes milliseconds instead of microseconds, so difficulty caps at `8` and `"auto"` bounds default to `1`–`2` (versus `64` and `3`–`6` for SHA-256).
+- **Profiles instead of raw parameters.** `argonProfile` resolves the Argon2id memory, iteration, and parallelism parameters for you. The library enforces a hard upper bound (`HARD_MAX`, exported from `ribaunt`) on those parameters, and tokens carrying values above it are rejected as `invalid-token`.
+- **Tokens are self-describing.** Each challenge token carries its algorithm and Argon2id parameters, signed into the JWT. `verifySolution()` detects the algorithm per token, so your verify endpoint needs no changes.
+- **Browser support is automatic.** The widget and its solver worker detect the algorithm per token and load the Argon2id solver on demand. The [`solver-backend` event](/widget/events#solver-backend) reports `argon2id` so you can confirm it in telemetry.
+- **Testing.** The synchronous [`solveChallenge()`](/api/solve-challenge) helper supports SHA-256 only. Use `solveChallengeAsync()` in tests that solve `argon2id` tokens.
+
+The adaptive engine works the same for both algorithms: `riskScore` and `calibration` remain raise-only signals within your configured bounds. [`assess()`](/api/assess) accepts `algorithm` and `argonProfile` in its `workload` options when you want the risk engine to produce Argon2id workloads.
+
 ## Validation
 
 `createChallenge()` validates its inputs at runtime and throws if anything is invalid:
 
-- **`difficulty`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
+- **`difficulty`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`. The maximum is `64` for `sha256` and `8` for `argon2id`.
+- **`algorithm`** — must be `'sha256'` or `'argon2id'` when provided.
+- **`argonProfile`** — must be `'mobile'` or `'standard'`, and is only accepted when `algorithm` is `'argon2id'`.
 - **`amount`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
 - **`ttlSeconds`** — must be a finite number and at least `1`. Fractional values are rounded down with `Math.floor()`.
 - **`workload`** — if you provide it, the selected values must still fit the configured bounds.

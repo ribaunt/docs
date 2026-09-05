@@ -77,9 +77,9 @@ widget.addEventListener('state-change', (event) => {
 
 ## `solver-backend`
 
-The `solver-backend` event is dispatched once per solve request when the worker selects its solving backend: `wasm` when the WebAssembly solver loaded, or `js` when WASM is disabled or unavailable. Use it for adoption telemetry or to confirm your [`wasm-mode`](/widget/configuration#wasm-solver) configuration takes effect. The detail never includes challenge contents, nonces, or hashes.
+The `solver-backend` event is dispatched once per solve request when the worker selects its solving backend: `wasm` when the WebAssembly SHA-256 solver loaded, `js` when WASM is disabled or unavailable, or `argon2id` when the challenge tokens use the memory-hard [Argon2id algorithm](/api/create-challenge#argon2id-opt-in). Use it for adoption telemetry or to confirm your [`wasm-mode`](/widget/configuration#wasm-solver) configuration takes effect. The detail never includes challenge contents, nonces, or hashes.
 
-**Event type:** `CustomEvent<{ backend: 'wasm' | 'js'; phase: 'solving' }>`
+**Event type:** `CustomEvent<{ backend: 'wasm' | 'js' | 'argon2id'; phase: 'solving' }>`
 
 ```js
 widget.addEventListener('solver-backend', (event) => {
@@ -88,6 +88,8 @@ widget.addEventListener('solver-backend', (event) => {
 ```
 
 The event only fires when solving runs inside a Web Worker. When `worker-mode="preferred"` falls back to main-thread solving, no `solver-backend` event is emitted.
+
+The worker detects the algorithm from the challenge tokens themselves, so `argon2id` is reported automatically whenever your server issues Argon2id challenges. `wasm-mode` does not affect this selection; it only controls the SHA-256 solver.
 
 **React equivalent:** listen via `onEvent` or `addEventListener` on the element ref.
 
